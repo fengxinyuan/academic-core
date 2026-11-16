@@ -1,0 +1,74 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "academic-core"
+version = "2.0.0"
+description = "A universal, decoupled academic document digitization, LaTeX self-healing, and publication-grade publishing engine."
+readme = "academic_core/README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+    { name = "Academic Core Contributors" }
+]
+keywords = [
+    "academic",
+    "latex",
+    "pdf",
+    "ocr",
+    "vision-llm",
+    "typography",
+    "katex",
+    "math",
+    "lecture-notes",
+    "typesetter"
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Education",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Text Processing :: Markup :: LaTeX",
+    "Topic :: Text Processing :: Markup :: Markdown",
+]
+dependencies = [
+    "pymupdf>=1.23.0",
+    "pillow>=9.0.0",
+    "requests>=2.28.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+office = [
+    "python-docx>=1.0.0",
+    "python-pptx>=0.6.20",
+]
+all = [
+    "python-docx>=1.0.0",
+    "python-pptx>=0.6.20",
+    "pytest>=8.0.0",
+]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.0.0",
+]
+
+[project.scripts]
+academic-core = "academic_core.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["academic_core*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]

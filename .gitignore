@@ -1,0 +1,60 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+dist_*/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Secrets & Environment variables (CRITICAL: NEVER COMMIT KEYS)
+.env
+.env.local
+.env.*.local
+
+# Caches & Temporary build files
+cache_ocr/
+.academic_checkpoint.json
+*.temp.html
+tests/temp_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Operating System
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ==========================================
+# Private / Course-Specific Deliverables & Datasets
+# (Must NOT be pushed to generic open-source repository)
+# ==========================================
+raw_onenote/
+pdf_deliverables/
+pdf_exports/
+markdown_output/
+manifests/
+*.one
+*.pdf
+高等代数与线性代数讲义全书*

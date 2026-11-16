@@ -1,0 +1,22 @@
+\documentclass{article}
+\usepackage{amsmath}
+\title{线性空间与特征子空间理论}
+\author{讲席教授}
+\begin{document}
+
+\section{特征值与特征向量的代数本质}
+设 $V$ 是数域 $\mathbb{F}$ 上的 $n$ 维线性空间，$T: V \to V$ 为线性变换。
+若存在非零向量 $x \in V$ 及标量 $\lambda \in \mathbb{F}$ 使得：
+\begin{equation}
+T(x) = \lambda x
+\end{equation}
+则称 $\lambda$ 为 $T$ 的特征值，$x$ 为属于 $\lambda$ 的特征向量。
+
+\subsection{特征子空间与维数定理}
+属于特征值 $\lambda$ 的所有特征向量连同零向量构成 $V$ 的子空间，称为特征子空间，记为 $E(\lambda)$：
+\begin{equation}
+E(\lambda) = \ker(\lambda I - T)
+\end{equation}
+其几何重数定义为 $\dim E(\lambda)$，且满足代数重数不小于几何重数。
+
+\end{document}
