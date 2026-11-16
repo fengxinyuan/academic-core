@@ -9,8 +9,8 @@
 
 ```mermaid
 flowchart TD
-    subgraph IN[输入介质归一化 (Converters)]
-        A1[".one 笔记"] --> N[NormalizedDocument]
+    subgraph IN ["输入介质归一化 (Converters)"]
+        A1[".one 笔记"] --> N["NormalizedDocument"]
         A2[".docx 文档"] --> N
         A3[".pptx 课件"] --> N
         A4[".pdf 扫描/数字"] --> N
@@ -19,34 +19,34 @@ flowchart TD
         A7[".zip / .tar 压缩包"] --> N
     end
 
-    subgraph ENG[提取与视觉 OCR 矩阵 (Vision OCR)]
-        N -->|纯文本/原生数字| TEXT[零开销纯文本直通]
-        N -->|图像/手写扫描| OCR[视觉与 OCR 引擎矩阵]
-        OCR --> QWEN[Qwen-VL-OCR]
-        OCR --> OAI[OpenAI / GPT-4o / vLLM]
-        OCR --> GEM[Google Gemini Vision]
-        OCR --> MOCK[Mock 零 Token 本地测试]
+    subgraph ENG ["提取与视觉 OCR 矩阵 (Vision OCR)"]
+        N -->|纯文本/原生数字| TEXT["零开销纯文本直通"]
+        N -->|图像/手写扫描| OCR["视觉与 OCR 引擎矩阵"]
+        OCR --> QWEN["Qwen-VL-OCR"]
+        OCR --> OAI["OpenAI / GPT-4o / vLLM"]
+        OCR --> GEM["Google Gemini Vision"]
+        OCR --> MOCK["Mock 零 Token 本地测试"]
     end
 
-    subgraph LLM[学术语义自愈中枢 (LLM Reasoning)]
-        TEXT --> L_ENG[学术推理引擎]
+    subgraph LLM ["学术语义自愈中枢 (LLM Reasoning)"]
+        TEXT --> L_ENG["学术推理引擎"]
         QWEN --> L_ENG
         OAI --> L_ENG
         GEM --> L_ENG
         MOCK --> L_ENG
-        L_ENG --> TASK1[note 板书讲义自愈]
-        L_ENG --> TASK2[textbook 教材精译]
-        L_ENG --> TASK3[paper 论文翻译与双语]
+        L_ENG --> TASK1["note 板书讲义自愈"]
+        L_ENG --> TASK2["textbook 教材精译"]
+        L_ENG --> TASK3["paper 论文翻译与双语"]
     end
 
-    subgraph MATH[数学公式语法自愈 (Math Enhancer)]
-        TASK1 --> L_FIX[LatexCleaner 语法自愈]
+    subgraph MATH ["数学公式语法自愈 (Math Enhancer)"]
+        TASK1 --> L_FIX["LatexCleaner 语法自愈"]
         TASK2 --> L_FIX
         TASK3 --> L_FIX
-        L_FIX -.->|标点外移/环境修复/未闭合补全| HEALED[纯净学术 Markdown]
+        L_FIX -.->|标点外移/环境修复/未闭合补全| HEALED["纯净学术 Markdown"]
     end
 
-    subgraph OUT[多格式出版级交付 (Exporters)]
+    subgraph OUT ["多格式出版级交付 (Exporters)"]
         HEALED --> EXP_PDF["出版级矢量 A4 PDF (Chrome/动态页码)"]
         HEALED --> EXP_HTML["自包含独立 HTML (KaTeX/响应式)"]
         HEALED --> EXP_MD["规范化 Markdown (YAML Frontmatter)"]
