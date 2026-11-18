@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "academic-core"
-version = "2.0.0"
+version = "2.1.0"
 description = "A universal, decoupled academic document digitization, LaTeX self-healing, and publication-grade publishing engine."
 readme = "academic_core/README.md"
 requires-python = ">=3.9"

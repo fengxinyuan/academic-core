@@ -94,6 +94,7 @@ class TextConverter(BaseConverter):
             doc_name=doc_name,
             pages=[PageData(page_num=1, text=converted_text)],
             is_text_only=True,
+            assets_dir=os.path.dirname(os.path.abspath(file_path)),
             metadata={"format": ext, "source_type": "text"}
         )
 

@@ -13,8 +13,11 @@ load_dotenv()
 
 DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+MINERU_TOKEN = os.getenv("MINERU_TOKEN", "")
+
 
 def find_chrome_executable() -> str:
     """
@@ -25,7 +28,6 @@ def find_chrome_executable() -> str:
     if custom and os.path.exists(custom):
         return custom
 
-    # 1. 尝试系统 PATH 中的命令别名
     path_candidates = [
         "google-chrome",
         "google-chrome-stable",
@@ -33,14 +35,13 @@ def find_chrome_executable() -> str:
         "chromium-browser",
         "chrome",
         "msedge",
-        "edge"
+        "edge",
     ]
     for cmd in path_candidates:
         p = shutil.which(cmd)
         if p and os.path.exists(p):
             return p
 
-    # 2. 操作系统典型安装路径
     if sys.platform == "win32":
         win_candidates = [
             r"C:\Program Files\Google\Chrome\Application\chrome.exe",
@@ -53,7 +54,7 @@ def find_chrome_executable() -> str:
         for c in win_candidates:
             if os.path.exists(c):
                 return c
-    elif sys.platform == "darwin":  # macOS
+    elif sys.platform == "darwin":
         mac_candidates = [
             "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
             "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
@@ -62,7 +63,7 @@ def find_chrome_executable() -> str:
         for c in mac_candidates:
             if os.path.exists(c):
                 return c
-    else:  # Linux / Unix
+    else:
         linux_candidates = [
             "/usr/bin/google-chrome",
             "/usr/bin/google-chrome-stable",

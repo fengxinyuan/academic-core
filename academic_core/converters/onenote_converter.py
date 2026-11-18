@@ -36,7 +36,7 @@ class OneNoteConverter(BaseConverter):
             """
             subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_code], check=True)
 
-        norm_doc = PDFConverter().convert(out_pdf)
+        norm_doc = PDFConverter(dpi=200, mode="vision").convert(out_pdf)
         norm_doc.source_path = file_path
         norm_doc.doc_name = doc_name
         norm_doc.metadata["format"] = "onenote"

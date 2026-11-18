@@ -13,7 +13,7 @@ from academic_core.monograph import MonographBinder
 from academic_core.checkpoint import TaskTracker
 from academic_core.registry import CONVERTER_REGISTRY, VISION_ENGINE_REGISTRY, EXPORTER_REGISTRY
 
-__version__ = "2.0.0"
+__version__ = "2.1.0"
 __all__ = [
     "AcademicPipeline",
     "convert_to_normalized",

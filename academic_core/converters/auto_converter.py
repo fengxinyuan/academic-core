@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 格式归一化转换器统一门面 (Auto Converter)
-按优先级智能侦测并分发至对应转换器
+按优先级智能侦测并分发至对应转换器，并透传 PDF 模式、DPI 与照片增强等核心选项。
 """
 
 import os
@@ -16,10 +16,9 @@ from academic_core.converters.epub_converter import EPUBConverter
 from academic_core.converters.text_converter import TextConverter
 from academic_core.converters.image_converter import ImageConverter
 
-# 转换器优先级列表
 CONVERTERS: list[BaseConverter] = [
     ZipConverter(),       # 压缩包自解包 (zip, tar, tgz)
-    PDFConverter(),       # PDF 矢量切片 / 原生文字直提
+    PDFConverter(),       # PDF (vision / mineru / text / auto)
     OneNoteConverter(),   # OneNote 笔记 (.one)
     WordConverter(),      # Word 文档 (.docx, .doc)
     PPTConverter(),       # PowerPoint 课件 (.pptx, .ppt)
@@ -29,14 +28,34 @@ CONVERTERS: list[BaseConverter] = [
     ImageConverter(),     # 单张图片与手机连拍照片目录
 ]
 
-def convert_to_normalized(file_or_dir_path: str, **kwargs) -> NormalizedDocument:
+
+def convert_to_normalized(
+    file_or_dir_path: str,
+    pdf_mode: str = "vision",
+    pdf_dpi: int = 200,
+    enhance_image: bool = False,
+    mineru_cache_dir: str = "cache_mineru",
+) -> NormalizedDocument:
     """
     自动识别任意输入源，转换为标准的 NormalizedDocument
     """
     if not os.path.exists(file_or_dir_path):
         raise FileNotFoundError(f"输入路径不存在: {file_or_dir_path}")
 
-    for conv in CONVERTERS:
+    # 动态构造带运行参数的转换器链
+    converters: list[BaseConverter] = [
+        ZipConverter(),
+        PDFConverter(dpi=pdf_dpi, mode=pdf_mode, mineru_cache_dir=mineru_cache_dir),
+        OneNoteConverter(),
+        WordConverter(),
+        PPTConverter(),
+        IPYNBConverter(),
+        EPUBConverter(),
+        TextConverter(),
+        ImageConverter(auto_enhance=enhance_image),
+    ]
+
+    for conv in converters:
         if conv.can_convert(file_or_dir_path):
             return conv.convert(file_or_dir_path)
 
