@@ -79,7 +79,13 @@ class LatexCleaner:
             left_count = len(re.findall(r'\\left[\(\[\{\.\|]', formula))
             right_count = len(re.findall(r'\\right[\)\]\}\.\|]', formula))
             if left_count > right_count:
-                formula += r" \right." * (left_count - right_count)
+                pad = r" \right." * (left_count - right_count)
+                # 若公式以 \end{aligned} 等环境收尾，将 \right. 补在环境内部，避免 KaTeX 环境错位
+                end_m = re.search(r'(\\end\{[a-zA-Z*]+\}\s*)$', formula)
+                if end_m:
+                    formula = formula[:end_m.start()] + pad + "\n" + end_m.group(1)
+                else:
+                    formula += pad
             elif right_count > left_count:
                 formula = (r"\left. " * (right_count - left_count)) + formula
             return formula
@@ -110,7 +116,4 @@ class LatexCleaner:
         res = cls.fix_subscript_superscript(res)
         res = cls.fix_command_spacing(res)
         res = cls.balance_left_right(res)
-
-        # 清除无效空白公式 $$
-        res = re.sub(r'\$\$\s*\$\$', '', res)
         return res

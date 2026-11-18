@@ -203,9 +203,15 @@ def assemble_mineru_markdown(
                     eq_img_map[fp] = os.path.join("images", os.path.basename(img_path)).replace("\\", "/")
                 pieces.append(f"\n\n$$\n{text}\n$$\n\n")
 
-        elif b_type == "image":
+        elif b_type in ("image", "chart"):
             img_path = b.get("img_path", "")
-            caption_raw = b.get("image_caption") or b.get("image_title") or b.get("caption") or ""
+            caption_raw = (
+                b.get("image_caption")
+                or b.get("chart_caption")
+                or b.get("image_title")
+                or b.get("caption")
+                or ""
+            )
             caption = " ".join(caption_raw) if isinstance(caption_raw, list) else str(caption_raw)
             caption = caption.strip()
             if img_path:
@@ -213,13 +219,35 @@ def assemble_mineru_markdown(
                 pieces.append(f"\n\n![{caption}]({rel_img})\n\n")
 
         elif b_type == "table":
-            table_body = b.get("table_body", "") or b.get("text", "")
+            table_body = (b.get("table_body", "") or b.get("text", "")).strip()
+            img_path = b.get("img_path", "")
             caption_raw = b.get("table_caption") or ""
             caption = " ".join(caption_raw) if isinstance(caption_raw, list) else str(caption_raw)
             if caption.strip():
                 pieces.append(f"\n\n*{caption.strip()}*\n\n")
             if table_body:
                 pieces.append(f"\n\n{table_body}\n\n")
+            elif img_path:
+                rel_img = os.path.join("images", os.path.basename(img_path)).replace("\\", "/")
+                pieces.append(f"\n\n![{caption.strip()}]({rel_img})\n\n")
+
+        elif b_type == "code":
+            code_body = (b.get("code_body", "") or b.get("text", "")).strip()
+            caption_raw = b.get("code_caption") or ""
+            caption = " ".join(caption_raw) if isinstance(caption_raw, list) else str(caption_raw)
+            if caption.strip():
+                pieces.append(f"\n\n**{caption.strip()}**\n\n")
+            if code_body:
+                if not code_body.startswith("```"):
+                    code_body = f"```\n{code_body}\n```"
+                pieces.append(f"\n\n{code_body}\n\n")
+
+        elif b_type == "list":
+            items = b.get("list_items") or []
+            if items:
+                formatted = "\n".join(f"- {str(it).strip()}" for it in items if str(it).strip())
+                if formatted:
+                    pieces.append(f"\n\n{formatted}\n\n")
 
     return "".join(pieces).strip(), eq_img_map
 

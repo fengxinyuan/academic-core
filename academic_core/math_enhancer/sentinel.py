@@ -114,14 +114,25 @@ def sanitize_and_repair_markdown(text: str) -> str:
     lines = text.split('\n')
     out = []
     i = 0
+    in_math = False
     while i < len(lines):
         if lines[i].strip() == '$$':
-            j = i + 1
-            while j < len(lines) and lines[j].strip() == '':
-                j += 1
-            if j < len(lines) and lines[j].strip() == '$$':
-                i = j + 1
-                continue
+            if not in_math:
+                # 仅在数学块外部检测空公式对 ($$ 紧跟空行后闭合 $$)
+                j = i + 1
+                while j < len(lines) and lines[j].strip() == '':
+                    j += 1
+                if j < len(lines) and lines[j].strip() == '$$':
+                    i = j + 1
+                    continue
+                in_math = True
+                out.append(lines[i])
+            else:
+                # 正在数学块内部，当前 $$ 为闭合符，绝不与下一块的起始 $$ 误合并
+                in_math = False
+                out.append(lines[i])
+            i += 1
+            continue
         out.append(lines[i])
         i += 1
     text = '\n'.join(out)

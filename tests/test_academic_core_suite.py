@@ -225,6 +225,9 @@ def test_2_vision_ocr_and_mineru_assembly():
             {"type": "text", "text": "We propose a new simple network architecture.", "page_idx": 0},
             {"type": "equation", "text": "\\text{Attention}(Q,K,V)=\\text{softmax}\\left(\\frac{QK^T}{\\sqrt{d_k}}\\right)V", "img_path": "images/eq1.jpg", "page_idx": 0},
             {"type": "image", "img_path": "images/arch.jpg", "image_caption": ["Figure 1: Model Architecture."], "page_idx": 1},
+            {"type": "chart", "img_path": "images/plot.jpg", "chart_caption": ["Figure 2: Accuracy Curve."], "page_idx": 1},
+            {"type": "code", "code_body": "Algorithm 1: SGD\n1: init theta", "page_idx": 1},
+            {"type": "list", "list_items": ["Ref [1] Vaswani et al. 2017"], "page_idx": 1},
             {"type": "table", "table_caption": ["Table 1: BLEU scores."], "table_body": "<table><tr><th>Model</th><th>BLEU</th></tr><tr><td>Transformer</td><td>28.4</td></tr></table>", "page_idx": 1},
         ]
         with open(os.path.join(tmp_dir, "sample_content_list.json"), "w", encoding="utf-8") as f:
@@ -233,6 +236,9 @@ def test_2_vision_ocr_and_mineru_assembly():
         md_out, eq_map = assemble_mineru_markdown(tmp_dir, include_page_markers=True)
         assert "# Attention Is All You Need" in md_out
         assert "![Figure 1: Model Architecture.](images/arch.jpg)" in md_out
+        assert "![Figure 2: Accuracy Curve.](images/plot.jpg)" in md_out
+        assert "Algorithm 1: SGD" in md_out
+        assert "- Ref [1] Vaswani et al. 2017" in md_out
         assert "<table>" in md_out
         assert len(eq_map) == 1
     finally:
@@ -306,9 +312,11 @@ def test_4_math_enhancer_and_sentinel():
     segs = split_by_paragraph_anchors(fake_trans, 3)
     assert segs == ["甲", "乙", "丙"]
 
-    # 裸露矩阵自动包裹
-    naked = "前文说明。\n\n\\begin{pmatrix} 1 & 0 \\\\ 0 & 1 \\end{pmatrix}\n\n后文。"
-    assert "$$\n\\begin{pmatrix}" in sanitize_and_repair_markdown(naked)
+    # 裸露矩阵自动包裹 + 连续两个独立公式块不得被误合并
+    naked = "前文说明。\n\n$$\nx = 1\n$$\n\n\\begin{pmatrix} 1 & 0 \\\\ 0 & 1 \\end{pmatrix}\n\n后文。"
+    repaired_naked = LatexCleaner.clean(sanitize_and_repair_markdown(naked))
+    assert repaired_naked.count("$$") == 4, f"连续公式块被误合并: {repaired_naked}"
+    assert "$$\n\\begin{pmatrix}" in repaired_naked
 
 
 def test_5_exporters_and_figure_closure():
