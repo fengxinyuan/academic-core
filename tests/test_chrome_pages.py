@@ -1,15 +1,19 @@
 # -*- coding: utf-8 -*-
 import os
 import sys
-sys.path.insert(0, ".")
 import tempfile
 import subprocess
+import pytest
 import pymupdf
 from academic_core.config import find_chrome_executable
 
-browser = find_chrome_executable()
 
-html_content = """<!DOCTYPE html><html>
+def test_chrome_native_page_numbers():
+    browser = find_chrome_executable()
+    if not browser:
+        pytest.skip("No Chrome/Edge browser found")
+
+    html_content = """<!DOCTYPE html><html>
 <head><style>
 @page { size: A4; margin: 18mm 16mm 18mm 16mm; }
 body { font-family: sans-serif; font-size: 15px; line-height: 1.6; }
@@ -20,28 +24,28 @@ body { font-family: sans-serif; font-size: 15px; line-height: 1.6; }
 <h1>第二页：继续测试</h1><p>第二页内容</p>
 </body></html>"""
 
-with tempfile.NamedTemporaryFile("w", suffix=".html", delete=False, encoding="utf-8") as f:
-    f.write(html_content)
-    temp_html = f.name
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as udir:
+        temp_html = os.path.join(udir, "temp.html")
+        temp_pdf = os.path.join(udir, "test_pages.pdf")
+        with open(temp_html, "w", encoding="utf-8") as f:
+            f.write(html_content)
 
-with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as udir:
-    cmd = [
-        browser,
-        "--headless=new",
-        "--disable-gpu",
-        "--no-sandbox",
-        f"--user-data-dir={udir}",
-        "--display-header-footer",
-        "--header-template=<div></div>",
-        '--footer-template=<div style="font-size:9px; color:#718096; width:100%; text-align:center; font-family:sans-serif;"><span class="pageNumber"></span> / <span class="totalPages"></span></div>',
-        "--print-to-pdf=test_pages.pdf",
-        temp_html
-    ]
-    subprocess.run(cmd, check=True)
+        cmd = [
+            browser,
+            "--headless=new",
+            "--disable-gpu",
+            "--no-sandbox",
+            f"--user-data-dir={udir}",
+            "--display-header-footer",
+            "--header-template=<div></div>",
+            '--footer-template=<div style="font-size:9px; color:#718096; width:100%; text-align:center; font-family:sans-serif;"><span class="pageNumber"></span> / <span class="totalPages"></span></div>',
+            f"--print-to-pdf={temp_pdf}",
+            temp_html,
+        ]
+        subprocess.run(cmd, check=True)
 
-doc = pymupdf.open("test_pages.pdf")
-print("Page count:", len(doc))
-doc.close()
-os.remove("test_pages.pdf")
-os.remove(temp_html)
-print("Native page numbers verified successfully!")
+        assert os.path.exists(temp_pdf)
+        doc = pymupdf.open(temp_pdf)
+        assert len(doc) == 2
+        doc.close()
+

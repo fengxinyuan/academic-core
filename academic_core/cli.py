@@ -62,6 +62,7 @@ def main():
     parser.add_argument("--no-llm", action="store_true", help="跳过大模型语义改写，仅执行格式转换/OCR + 公式自愈并直出排版")
     parser.add_argument("--bilingual", action="store_true", help="开启 1:1 段落精准双语对照排版模式")
     parser.add_argument("--glossary", default="", help="专业术语对齐约束字典 JSON (例如: '{\"eigenvalue\": \"特征值\"}')")
+    parser.add_argument("--auto-glossary", action="store_true", help="开启大模型前置全局学术术语对齐预扫描，确保全书/全篇术语统一")
     parser.add_argument("--max-chunk-chars", type=int, default=5000, help="长文分块单块字符上限 (默认: 5000)")
     parser.add_argument("--workers", type=int, default=4, help="多页 OCR 与长文分块并发线程数 (默认: 4)")
     parser.add_argument("--merge", "-m", action="store_true", help="一键编译专著大合订本 (含全局目录与跨页锚点)")
@@ -119,6 +120,7 @@ def main():
         glossary=glossary_dict,
         bilingual=args.bilingual,
         resume=not args.no_resume,
+        auto_glossary=args.auto_glossary,
     )
 
 

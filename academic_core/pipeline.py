@@ -78,6 +78,8 @@ class AcademicPipeline:
         glossary: Optional[dict] = None,
         bilingual: bool = False,
         ensure_md_for_merge: bool = False,
+        auto_glossary: bool = False,
+        resume: bool = True,
     ) -> Dict[str, str]:
         """
         处理单一输入（支持 .pdf, .one, .docx, .pptx, .epub, .ipynb, .tex, .md, .zip/.tar, 照片或照片目录），
@@ -122,7 +124,22 @@ class AcademicPipeline:
 
         raw_latex = "\n\n---\n\n".join(p for p in extracted_pages if p.strip())
 
-        # 3. 学术语义重构与长文并发翻译（支持 --no-llm 跳过改写直出排版）
+        # 3. 术语自动预对齐与长文并发翻译
+        if auto_glossary and self.use_llm and self.llm is not None:
+            from academic_core.llm_reasoning.glossary import GlossaryManager
+            glossary = GlossaryManager.generate_glossary(
+                self.llm,
+                raw_latex,
+                target_lang=self.target_lang,
+                existing_glossary=glossary,
+            )
+            try:
+                g_path = os.path.join(output_dir, f"{base_name}_glossary.json")
+                with open(g_path, "w", encoding="utf-8") as gfp:
+                    json.dump(glossary, gfp, ensure_ascii=False, indent=2)
+            except Exception:
+                pass
+
         if self.use_llm and self.llm is not None:
             healed_text = self.llm.process_academic_task(
                 raw_latex,
@@ -131,6 +148,7 @@ class AcademicPipeline:
                 glossary=glossary,
                 bilingual=bilingual,
                 target_lang=self.target_lang,
+                resume=resume,
             )
         else:
             healed_text = raw_latex
@@ -209,6 +227,7 @@ class AcademicPipeline:
         glossary: Optional[dict] = None,
         bilingual: bool = False,
         resume: bool = True,
+        auto_glossary: bool = False,
     ) -> List[Dict[str, str]]:
         """
         批量处理多个输入（支持通配符、单文件或照片目录），支持断点续传与无漏章专著大合订本
@@ -250,6 +269,8 @@ class AcademicPipeline:
                     glossary=glossary,
                     bilingual=bilingual,
                     ensure_md_for_merge=merge_monograph,
+                    auto_glossary=auto_glossary,
+                    resume=resume,
                 )
                 results.append(out_dict)
 

@@ -11,6 +11,8 @@
 import os
 import re
 import time
+import json
+import hashlib
 import logging
 import requests
 from typing import Optional, List, Dict
@@ -66,11 +68,13 @@ class AcademicLLMEngine:
         base_url: Optional[str] = None,
         max_chunk_chars: int = 5000,
         max_workers: int = 4,
+        chunk_cache_dir: str = "cache_chunks",
     ):
         self.provider = provider.lower().strip()
         self.model = model
         self.max_chunk_chars = max(1000, int(max_chunk_chars))
         self.max_workers = max(1, int(max_workers))
+        self.chunk_cache_dir = chunk_cache_dir
 
         if self.provider in ("mock", "test"):
             self.api_url = ""
@@ -246,7 +250,12 @@ class AcademicLLMEngine:
                     if _is_pure_structural_block(b):
                         interleaved.append(b)
                     else:
-                        interleaved.append(f'<div class="bilingual-orig">\n\n{b}\n\n</div>\n\n[译文] {b}')
+                        interleaved.append(
+                            f'<div class="bilingual-pair">\n'
+                            f'<div class="bilingual-orig">\n\n{b}\n\n</div>\n'
+                            f'<div class="bilingual-trans">\n\n[译文] {b}\n\n</div>\n'
+                            f'</div>'
+                        )
                 return "\n\n".join(interleaved)
             return chunk_text
 
@@ -291,7 +300,7 @@ class AcademicLLMEngine:
             if missing > 0:
                 logger.warning(f"分块 {chunk_idx + 1} 检测到 {missing} 处公式被模型遗漏，已自动兜底找回。")
 
-        # 4. 组装 1:1 精准双语对照
+        # 4. 组装 1:1 精准双语对照 (左右分栏卡片)
         if bilingual and orig_blocks:
             trans_blocks = split_by_paragraph_anchors(out, len(orig_blocks))
             if trans_blocks is not None:
@@ -300,12 +309,22 @@ class AcademicLLMEngine:
                     if _is_pure_structural_block(orig_b):
                         paired.append(orig_b)
                     else:
-                        paired.append(f'<div class="bilingual-orig">\n\n{orig_b}\n\n</div>\n\n{trans_b}')
+                        paired.append(
+                            f'<div class="bilingual-pair">\n'
+                            f'<div class="bilingual-orig">\n\n{orig_b}\n\n</div>\n'
+                            f'<div class="bilingual-trans">\n\n{trans_b}\n\n</div>\n'
+                            f'</div>'
+                        )
                 return "\n\n".join(paired)
             else:
                 # 降级：锚点不完整时做块级对照，保证零内容丢失
                 clean_trans = strip_paragraph_anchors(out)
-                return f'<div class="bilingual-orig">\n\n{chunk_text}\n\n</div>\n\n{clean_trans}'
+                return (
+                    f'<div class="bilingual-pair">\n'
+                    f'<div class="bilingual-orig">\n\n{chunk_text}\n\n</div>\n'
+                    f'<div class="bilingual-trans">\n\n{clean_trans}\n\n</div>\n'
+                    f'</div>'
+                )
 
         return strip_paragraph_anchors(out)
 
@@ -318,10 +337,12 @@ class AcademicLLMEngine:
         bilingual: bool = False,
         target_lang: str = "zh-CN",
         use_math_sentinel: Optional[bool] = None,
+        resume: bool = True,
     ) -> str:
         """
         统一学术语义推理与长文档翻译入口：
         - 短文档自动单块处理；长文档（论文/教材）自动语义分块并发处理。
+        - 支持切片级原子断点续传（chunk checkpointing），网络中断或重跑秒级恢复已完成切片。
         - paper/textbook 默认开启公式哨兵物理隔离，note 默认允许大模型修复手写 OCR 断裂公式。
         """
         if not raw_content or not raw_content.strip():
@@ -331,24 +352,14 @@ class AcademicLLMEngine:
         if use_math_sentinel is None:
             use_math_sentinel = task_key in ("paper", "academic_paper", "textbook", "textbook_translation")
 
-        # Mock 离线模式快速返回完整结构（同时测试分块和双语逻辑）
-        if self.provider in ("mock", "test"):
-            chunks = self._split_into_chunks(raw_content, max_chars=self.max_chunk_chars)
-            processed_body = "\n\n".join(
-                self._process_single_chunk(c, "", doc_name, idx, len(chunks), use_math_sentinel, bilingual)
-                for idx, c in enumerate(chunks)
-            )
-            if processed_body.lstrip().startswith("#"):
-                return processed_body
-            return f"# {doc_name or '学术文档'}\n\n{processed_body}"
+        is_mock = self.provider in ("mock", "test")
+        system_prompt = get_task_prompt(task_key, target_lang=target_lang) if not is_mock else ""
 
-        system_prompt = get_task_prompt(task_key, target_lang=target_lang)
-
-        if glossary:
+        if glossary and not is_mock:
             terms_lines = "\n".join([f"- {k} -> {v}" for k, v in glossary.items()])
             system_prompt += f"\n\n【专业术语强制规范表（必须严格遵循）】：\n{terms_lines}"
 
-        if bilingual:
+        if bilingual and not is_mock:
             system_prompt += (
                 "\n\n【双语锚点规范】：输入文本包含 `PARA0ZZZ`、`PARA1ZZZ` 等段落锚点。"
                 "你只需要输出目标语言译文，并在每段译文正上方原样保留对应的 `PARAxZZZ` 锚点，严禁遗漏、合并或复述英文原文。"
@@ -357,23 +368,48 @@ class AcademicLLMEngine:
         chunks = self._split_into_chunks(raw_content, max_chars=self.max_chunk_chars)
         total_chunks = len(chunks)
 
-        if total_chunks == 1:
-            result = self._process_single_chunk(
-                chunks[0], system_prompt, doc_name, 0, 1, use_math_sentinel, bilingual
+        def _execute_with_chunk_cache(idx: int, txt: str) -> str:
+            chunk_hash = hashlib.sha256(
+                f"{self.provider}_{self.model}_{target_lang}_{bilingual}_{use_math_sentinel}_{doc_name}_{idx}_{txt}".encode("utf-8")
+            ).hexdigest()[:16]
+            cache_file = os.path.join(self.chunk_cache_dir, f"{doc_name or 'doc'}_chunk_{idx:03d}_{chunk_hash}.json")
+            if resume and os.path.exists(cache_file):
+                try:
+                    with open(cache_file, "r", encoding="utf-8") as fp:
+                        cdata = json.load(fp)
+                        if "result" in cdata:
+                            logger.info(f"分块 {idx + 1}/{total_chunks} 命中切片检查点，秒级复用。")
+                            return cdata["result"]
+                except Exception:
+                    pass
+
+            res = self._process_single_chunk(
+                txt, system_prompt, doc_name, idx, total_chunks, use_math_sentinel, bilingual
             )
+
+            try:
+                os.makedirs(self.chunk_cache_dir, exist_ok=True)
+                with open(cache_file, "w", encoding="utf-8") as fp:
+                    json.dump({"doc": doc_name, "chunk_idx": idx, "hash": chunk_hash, "result": res}, fp, ensure_ascii=False)
+            except Exception:
+                pass
+
+            return res
+
+        if total_chunks == 1:
+            result = _execute_with_chunk_cache(0, chunks[0])
         else:
             logger.info(f"长文档检测到 {len(raw_content)} 字符，已智能切分为 {total_chunks} 块并发推理...")
             def _worker(args):
                 idx, txt = args
-                return idx, self._process_single_chunk(
-                    txt, system_prompt, doc_name, idx, total_chunks, use_math_sentinel, bilingual
-                )
+                return idx, _execute_with_chunk_cache(idx, txt)
 
             ordered: Dict[int, str] = {}
             with ThreadPoolExecutor(max_workers=min(self.max_workers, total_chunks)) as pool:
                 for idx, res in pool.map(_worker, enumerate(chunks)):
                     ordered[idx] = res
             result = "\n\n".join(ordered[i] for i in range(total_chunks))
+
 
         # 通用去噪：清除可能残留的客套结束语
         result = re.sub(r'>\s*📝\s*\*\*下节预告\*\*.*', '', result)

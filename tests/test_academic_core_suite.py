@@ -13,6 +13,7 @@ academic_core 2.1 全模块综合质检与全自动化端到端测试套件
 
 import os
 import sys
+import glob
 import tempfile
 import zipfile
 import shutil
@@ -457,6 +458,41 @@ def test_8_pipeline_e2e_bilingual_paper():
         shutil.rmtree(temp_dir, ignore_errors=True)
 
 
+def test_9_glossary_and_chunk_cache():
+    print("\n[测试 9/9] 全局术语表自动预对齐与切片级断点续传...", flush=True)
+    from academic_core.llm_reasoning.glossary import GlossaryManager
+
+    # 1. 术语候选提取
+    sample_text = "Let T be an Adjoint Operator on a Vector Space with Inner Product. We examine the Nullspace."
+    terms = GlossaryManager.extract_candidate_terms(sample_text)
+    assert any("Adjoint Operator" in t for t in terms) or any("Vector Space" in t for t in terms)
+
+    # 2. Mock 术语生成与用户传入优先级
+    mock_llm = AcademicLLMEngine(provider="mock")
+    glossary = GlossaryManager.generate_glossary(
+        mock_llm,
+        sample_text,
+        existing_glossary={"Nullspace": "零空间"},
+    )
+    assert glossary["Nullspace"] == "零空间"
+    assert "eigenvalue" in glossary
+
+    # 3. 切片级断点续传
+    temp_cache_dir = tempfile.mkdtemp(prefix="test_chunk_cache_")
+    try:
+        cached_llm = AcademicLLMEngine(provider="mock", chunk_cache_dir=temp_cache_dir)
+        doc_text = "Chunk 1 content here.\n\nChunk 2 content here."
+        out1 = cached_llm.process_academic_task(doc_text, doc_name="test_chunk_doc", resume=True)
+
+        cache_files = glob.glob(os.path.join(temp_cache_dir, "*.json"))
+        assert len(cache_files) >= 1
+
+        out2 = cached_llm.process_academic_task(doc_text, doc_name="test_chunk_doc", resume=True)
+        assert out1 == out2
+    finally:
+        shutil.rmtree(temp_cache_dir, ignore_errors=True)
+
+
 if __name__ == "__main__":
     test_1_converters()
     test_2_vision_ocr_and_mineru_assembly()
@@ -466,4 +502,5 @@ if __name__ == "__main__":
     test_6_checkpoint_and_resumed_monograph()
     test_7_no_llm_fast_typeset_mode()
     test_8_pipeline_e2e_bilingual_paper()
-    print("\n🎉 academic_core 2.1 全部 8 大核心端到端测试通过，0 缺陷！")
+    test_9_glossary_and_chunk_cache()
+    print("\n🎉 academic_core 2.1 全部 9 大核心端到端测试通过，0 缺陷！")

@@ -61,19 +61,133 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
             color: #2d3748;
         }
 
-        /* 双语对照原文柔化区块 */
+        /* 双语分栏对照排版与卡片 */
+        .bilingual-pair {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 22px;
+            margin: 16px 0;
+            align-items: start;
+        }
+        .bilingual-col {
+            min-width: 0;
+        }
         .bilingual-orig {
-            margin: 14px 0 6px 0;
-            padding: 10px 16px;
+            margin: 0;
+            padding: 12px 16px;
             background-color: #f8fafc;
             border-left: 3px solid #cbd5e0;
-            border-radius: 3px;
+            border-radius: 4px;
             color: var(--muted-color);
-            font-size: 0.92em;
+            font-size: 0.93em;
             line-height: 1.6;
         }
-        .bilingual-orig p {
-            margin: 4px 0;
+        .bilingual-trans {
+            margin: 0;
+            padding: 12px 16px;
+            background-color: #ffffff;
+            border-left: 3px solid #3182ce;
+            border-radius: 4px;
+            color: var(--text-color);
+            font-size: 0.98em;
+            line-height: 1.7;
+        }
+        .bilingual-orig p:first-child, .bilingual-trans p:first-child {
+            margin-top: 0;
+        }
+        .bilingual-orig p:last-child, .bilingual-trans p:last-child {
+            margin-bottom: 0;
+        }
+
+        /* 顶部悬浮阅读控制栏 (左右对照 / 上下流式 / 纯译文 / 纯原文) */
+        .toolbar {
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(8px);
+            border-bottom: 1px solid var(--border-color);
+            padding: 10px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 13px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .toolbar-title {
+            font-weight: 600;
+            color: #2d3748;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 45%;
+        }
+        .toolbar-buttons {
+            display: flex;
+            gap: 8px;
+        }
+        .btn-mode {
+            padding: 5px 12px;
+            border: 1px solid #cbd5e0;
+            background: #ffffff;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            color: #4a5568;
+            transition: all 0.2s;
+        }
+        .btn-mode:hover {
+            border-color: #3182ce;
+            color: #3182ce;
+        }
+        .btn-mode.active {
+            background: #3182ce;
+            color: #ffffff;
+            border-color: #3182ce;
+        }
+
+        /* 视图模式支持 */
+        body.mode-side-by-side .container {
+            max-width: 1360px;
+            padding: 24px 36px;
+        }
+        body.mode-stacked .bilingual-pair {
+            display: block;
+        }
+        body.mode-stacked .bilingual-orig {
+            margin-bottom: 8px;
+        }
+        body.mode-stacked .container {
+            max-width: 860px;
+        }
+        body.mode-trans-only .bilingual-orig {
+            display: none !important;
+        }
+        body.mode-trans-only .bilingual-pair {
+            display: block;
+        }
+        body.mode-trans-only .container {
+            max-width: 860px;
+        }
+        body.mode-orig-only .bilingual-trans {
+            display: none !important;
+        }
+        body.mode-orig-only .bilingual-pair {
+            display: block;
+        }
+        body.mode-orig-only .container {
+            max-width: 860px;
+        }
+
+        @media (max-width: 900px) {
+            .bilingual-pair {
+                grid-template-columns: 1fr !important;
+                gap: 10px;
+            }
+            .container {
+                max-width: 100% !important;
+                padding: 16px !important;
+            }
         }
 
         /* 原文页码徽标 */
@@ -175,10 +289,31 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
         }
     </style>
 </head>
-<body>
+<body class="mode-side-by-side">
+    <div class="toolbar" id="toolbar" style="display:none;">
+        <div class="toolbar-title">__TITLE__</div>
+        <div class="toolbar-buttons">
+            <button class="btn-mode active" id="btn-side" onclick="setViewMode('side-by-side')">📖 左右分栏</button>
+            <button class="btn-mode" id="btn-stack" onclick="setViewMode('stacked')">📄 上下流式</button>
+            <button class="btn-mode" id="btn-trans" onclick="setViewMode('trans-only')">🇨🇳 仅看译文</button>
+            <button class="btn-mode" id="btn-orig" onclick="setViewMode('orig-only')">🇬🇧 仅看原文</button>
+        </div>
+    </div>
     <div class="container" id="content"></div>
     <script id="raw-markdown" type="application/json">__RAW_MD_PLACEHOLDER__</script>
     <script>
+        function setViewMode(mode) {
+            document.body.className = `mode-${mode}`;
+            ['side', 'stack', 'trans', 'orig'].forEach(k => {
+                const btn = document.getElementById(`btn-${k}`);
+                if (btn) btn.classList.remove('active');
+            });
+            if (mode === 'side-by-side') document.getElementById('btn-side')?.classList.add('active');
+            if (mode === 'stacked') document.getElementById('btn-stack')?.classList.add('active');
+            if (mode === 'trans-only') document.getElementById('btn-trans')?.classList.add('active');
+            if (mode === 'orig-only') document.getElementById('btn-orig')?.classList.add('active');
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             const raw = JSON.parse(document.getElementById('raw-markdown').textContent);
             const mathTokens = [];
@@ -213,10 +348,46 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
                 return mathTokens[parseInt(idx)] || m;
             });
 
-            document.getElementById('content').innerHTML = html;
+            const contentEl = document.getElementById('content');
+            contentEl.innerHTML = html;
+
+            // 自动检测双语元素：若存在双语对照，显示控制工具栏并默认开启左右对照
+            const hasBilingual = contentEl.querySelector('.bilingual-pair, .bilingual-orig');
+            if (hasBilingual) {
+                document.getElementById('toolbar').style.display = 'flex';
+
+                // 兼容旧版：若存在未包裹在 .bilingual-pair 内的 .bilingual-orig，自动与后续兄弟节点成对封装
+                const rawOrigs = contentEl.querySelectorAll('.bilingual-orig');
+                rawOrigs.forEach(orig => {
+                    if (!orig.closest('.bilingual-pair')) {
+                        const nextEl = orig.nextElementSibling;
+                        if (nextEl && !nextEl.classList.contains('bilingual-orig')) {
+                            const pair = document.createElement('div');
+                            pair.className = 'bilingual-pair';
+                            const colLeft = document.createElement('div');
+                            colLeft.className = 'bilingual-col bilingual-orig';
+                            colLeft.innerHTML = orig.innerHTML;
+
+                            const colRight = document.createElement('div');
+                            colRight.className = 'bilingual-col bilingual-trans';
+                            colRight.appendChild(nextEl.cloneNode(true));
+
+                            pair.appendChild(colLeft);
+                            pair.appendChild(colRight);
+
+                            orig.parentNode.insertBefore(pair, orig);
+                            orig.remove();
+                            nextEl.remove();
+                        }
+                    }
+                });
+            } else {
+                document.body.className = '';
+            }
         });
     </script>
 </body>
+
 </html>
 """
 

@@ -9,6 +9,10 @@ import sys
 import shutil
 from dotenv import load_dotenv
 
+# 优先查找当前工作目录，其次查找 academic-core 根目录
+pkg_root_env = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
+if os.path.exists(pkg_root_env):
+    load_dotenv(pkg_root_env)
 load_dotenv()
 
 DASHSCOPE_API_KEY = os.getenv("DASHSCOPE_API_KEY", "")
