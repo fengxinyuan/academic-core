@@ -164,15 +164,15 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
         h2 { font-size: 1.35em; border-bottom: 1px solid var(--border-color); padding-bottom: 6px; }
         h3 { font-size: 1.15em; }
 
-        /* 🌟 核心：双语分栏网格与高保真对齐 */
+        /* 🌟 核心：双语分栏网格与高保真对齐（高密度紧凑排版） */
         .bilingual-pair {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 24px;
-            margin: 16px 0;
+            gap: 16px;
+            margin: 8px 0;
             align-items: stretch;
-            border-radius: 8px;
-            padding: 4px;
+            border-radius: 6px;
+            padding: 2px;
             transition: all 0.15s ease-in-out;
         }
         .bilingual-pair:hover {
@@ -184,14 +184,14 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
         .bilingual-orig {
             position: relative;
             margin: 0;
-            padding: 14px 18px;
+            padding: 10px 14px;
             background-color: var(--orig-bg);
             border: 1px solid var(--border-color);
             border-radius: 6px;
             color: var(--text-en);
             font-family: Charter, "Source Serif 4", Georgia, "Times New Roman", serif;
-            font-size: 0.94em;
-            line-height: 1.72;
+            font-size: 0.93em;
+            line-height: 1.62;
             text-align: justify;
             hyphens: auto;
             box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
@@ -199,14 +199,14 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
         .bilingual-trans {
             position: relative;
             margin: 0;
-            padding: 14px 18px;
+            padding: 10px 14px;
             background-color: var(--trans-bg);
             border: 1px solid var(--border-color);
             border-radius: 6px;
             color: var(--text-color);
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-            font-size: 0.98em;
-            line-height: 1.76;
+            font-size: 0.95em;
+            line-height: 1.65;
             text-align: justify;
             box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
         }
@@ -232,8 +232,9 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
 
         /* 视图模式支持 */
         body.mode-side-by-side .container {
-            max-width: 1380px;
-            padding: 30px 42px;
+            width: 95%;
+            max-width: 1600px;
+            padding: 20px 32px;
         }
         body.mode-stacked .bilingual-pair {
             display: block;
@@ -449,11 +450,32 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
                 return id;
             });
 
-            // 保护行内 $...$
-            processed = processed.replace(/(?<!\\$)\\$([^\\$\\n]+?)\\$(?!\\$)/g, (m, code) => {
+            // 保护未包裹定界符的裸 LaTeX 数学环境 (如未加 $ 的 \\begin{array} ... \\end{array})
+            processed = processed.replace(/(?<!\\$)\\\\begin\\{(aligned|array|matrix|pmatrix|bmatrix|vmatrix|cases|gather|equation\\*?)\\}([\\s\\S]*?)\\\\end\\{\\1\\}(?!\\$)/g, (m) => {
+                // 简化冗余单格 array: \\begin{array}{r}{\\sigma(x)=...}\\end{array} -> \\sigma(x)=...
+                const simplified = m.replace(/\\\\begin\\{array\\}\\s*\\{[ \\t]*[rcl][ \\t]*\\}\\s*\\{([\\s\\S]*?)\\}\\s*\\\\end\\{array\\}/, '$1');
                 const id = `MATHINLINE${mathTokens.length}ZZZ`;
                 try {
-                    const rendered = katex.renderToString(code.trim(), { displayMode: false, throwOnError: false });
+                    const rendered = katex.renderToString(simplified.trim(), { displayMode: false, throwOnError: false });
+                    mathTokens.push(rendered);
+                } catch(e) {
+                    try {
+                        const rendered = katex.renderToString(m.trim(), { displayMode: false, throwOnError: false });
+                        mathTokens.push(rendered);
+                    } catch(e2) {
+                        mathTokens.push(`$${m}$`);
+                    }
+                }
+                return id;
+            });
+
+            // 保护行内 $...$
+            processed = processed.replace(/(?<!\\$)\\$([^\\$\\n]+?)\\$(?!\\$)/g, (m, code) => {
+                // 如果行内公式包含单格 array 冗余包裹，自动解包简化
+                const simplified = code.replace(/\\\\begin\\{array\\}\\s*\\{[ \\t]*[rcl][ \\t]*\\}\\s*\\{([\\s\\S]*?)\\}\\s*\\\\end\\{array\\}/, '$1');
+                const id = `MATHINLINE${mathTokens.length}ZZZ`;
+                try {
+                    const rendered = katex.renderToString(simplified.trim(), { displayMode: false, throwOnError: false });
                     mathTokens.push(rendered);
                 } catch(e) {
                     mathTokens.push(`$${code}$`);

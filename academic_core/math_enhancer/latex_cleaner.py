@@ -41,6 +41,58 @@ class LatexCleaner:
         return res
 
     @staticmethod
+    def simplify_single_cell_arrays(text: str) -> str:
+        """
+        消除 OCR 视觉抽取中把简单行内公式伪装成单列 array 矩阵的冗余语法：
+        \\begin{array} { r } { \\sigma(x) = ... } \\end{array} -> \\sigma(x) = ...
+        若原 array 缺失 $ 定界符，自动补充 $，确保 KaTeX 正常渲染
+        """
+        def _repl(m):
+            inner = m.group(1).strip()
+            start = m.start()
+            end = m.end()
+            has_pre = (start > 0 and text[start - 1] == '$')
+            has_post = (end < len(text) and text[end] == '$')
+            if has_pre and has_post:
+                return f" {inner} "
+            return f"${inner}$"
+
+        return re.sub(
+            r'\\begin\{array\}\s*\{[ \t]*[rcl][ \t]*\}\s*\{([\s\S]*?)\}\s*\\end\{array\}',
+            _repl,
+            text
+        )
+
+    @staticmethod
+    def wrap_bare_latex_environments(text: str) -> str:
+        """
+        自愈未包裹 $ 或 $$ 定界符的裸 LaTeX 数学环境 (如 \\begin{aligned}, \\begin{cases}, \\begin{matrix})
+        防止其在 Markdown 中无法被 KaTeX 识别而直接裸露为原始代码
+        """
+        env_pattern = re.compile(
+            r'\\begin\{(aligned|array|matrix|pmatrix|bmatrix|vmatrix|cases|gather|equation\*?)\}'
+            r'([\s\S]*?)'
+            r'\\end\{\1\}'
+        )
+
+        def _is_inside_math(pos: int) -> bool:
+            prefix = text[:pos]
+            if prefix.count('$$') % 2 == 1:
+                return True
+            without_blocks = prefix.replace('$$', '')
+            return (without_blocks.count('$') % 2 == 1)
+
+        def _wrap(m):
+            if _is_inside_math(m.start()):
+                return m.group(0)
+            code = m.group(0).strip()
+            if "\n" in code:
+                return f"\n\n$${code}$$\n\n"
+            return f"${code}$"
+
+        return env_pattern.sub(_wrap, text)
+
+    @staticmethod
     def fix_align_environments(text: str) -> str:
         """
         KaTeX 在 Markdown 中默认不支持顶级 align 环境，必须使用 aligned 环境
@@ -111,6 +163,8 @@ class LatexCleaner:
             return ""
 
         res = markdown_text
+        res = cls.simplify_single_cell_arrays(res)
+        res = cls.wrap_bare_latex_environments(res)
         res = cls.fix_chinese_punctuation_in_math(res)
         res = cls.fix_align_environments(res)
         res = cls.fix_subscript_superscript(res)
