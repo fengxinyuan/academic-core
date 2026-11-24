@@ -39,7 +39,15 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
             --trans-border: #2563eb;
             --card-hover: rgba(37, 99, 235, 0.04);
             --card-hover-border: #93c5fd;
-            --base-font-size: 15px;
+            --base-font-size: 14.5px;
+            --content-width: 95%;
+            --content-max-width: 1600px;
+            --font-zh-serif: "Source Han Serif SC", "Noto Serif SC", "Songti SC", "SimSun", "STSong", STFangsong, "Times New Roman", serif;
+            --font-zh-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            --font-zh: var(--font-zh-serif);
+        }
+        body.font-sans {
+            --font-zh: var(--font-zh-sans);
         }
         body.theme-dark {
             --bg-color: #0b0f19;
@@ -146,7 +154,7 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
         .btn-mode:hover, .btn-tool:hover {
             background: rgba(0,0,0,0.06);
         }
-        .btn-mode.active {
+        .btn-mode.active, .btn-tool.active {
             background: var(--accent-color);
             color: #ffffff !important;
             font-weight: 600;
@@ -204,9 +212,9 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
             border: 1px solid var(--border-color);
             border-radius: 6px;
             color: var(--text-color);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-            font-size: 0.95em;
-            line-height: 1.65;
+            font-family: var(--font-zh);
+            font-size: 0.96em;
+            line-height: 1.66;
             text-align: justify;
             box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
         }
@@ -227,13 +235,14 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
         }
         .bilingual-trans h1, .bilingual-trans h2, .bilingual-trans h3 {
             color: var(--text-color);
-            font-size: 1.25em;
+            font-family: var(--font-zh);
+            font-size: 1.22em;
         }
 
         /* 视图模式支持 */
         body.mode-side-by-side .container {
-            width: 95%;
-            max-width: 1600px;
+            width: var(--content-width);
+            max-width: var(--content-max-width);
             padding: 20px 32px;
         }
         body.mode-stacked .bilingual-pair {
@@ -391,24 +400,52 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
                 <button class="btn-mode" id="btn-orig" onclick="setViewMode('orig-only')">🇬🇧 仅看原文</button>
             </div>
             <div class="btn-group">
+                <button class="btn-tool active" id="btn-font-song" onclick="setFontFamily('song')" title="学术宋体">宋体</button>
+                <button class="btn-tool" id="btn-font-sans" onclick="setFontFamily('sans')" title="现代黑体">黑体</button>
+            </div>
+            <div class="btn-group">
+                <button class="btn-tool" onclick="changeFontSize(-0.5)" title="缩小字号">A-</button>
+                <span id="font-size-label" style="font-size: 11px; padding: 2px 4px; font-weight: 600; opacity: 0.8; display: inline-flex; align-items: center;">14.5px</span>
+                <button class="btn-tool" onclick="changeFontSize(0.5)" title="放大字号">A+</button>
+            </div>
+            <div class="btn-group">
+                <button class="btn-tool" id="btn-width" onclick="toggleWidth()" title="切换视口版心宽度">📐 宽屏 95%</button>
+            </div>
+            <div class="btn-group">
                 <button class="btn-tool" onclick="setTheme('light')" title="浅色明亮">☀️</button>
                 <button class="btn-tool" onclick="setTheme('sepia')" title="羊皮纸护眼">📜</button>
                 <button class="btn-tool" onclick="setTheme('dark')" title="深色夜间">🌙</button>
-            </div>
-            <div class="btn-group">
-                <button class="btn-tool" onclick="changeFontSize(-1)" title="缩小字号">A-</button>
-                <button class="btn-tool" onclick="changeFontSize(1)" title="放大字号">A+</button>
             </div>
         </div>
     </div>
     <div class="container" id="content"></div>
     <script id="raw-markdown" type="application/json">__RAW_MD_PLACEHOLDER__</script>
     <script>
-        let currentFontSize = 15;
+        let currentFontSize = 14.5;
+        let currentWidthLevel = 0;
+        const widthConfigs = [
+            { label: '📐 宽屏 95%', width: '95%', maxWidth: '1600px' },
+            { label: '📐 全景 100%', width: '99%', maxWidth: '100%' },
+            { label: '📐 适中 85%', width: '85%', maxWidth: '1280px' },
+        ];
+
+        function setFontFamily(type) {
+            if (type === 'sans') {
+                document.body.classList.add('font-sans');
+                document.getElementById('btn-font-sans')?.classList.add('active');
+                document.getElementById('btn-font-song')?.classList.remove('active');
+            } else {
+                document.body.classList.remove('font-sans');
+                document.getElementById('btn-font-song')?.classList.add('active');
+                document.getElementById('btn-font-sans')?.classList.remove('active');
+            }
+            try { localStorage.setItem('academic_font_family', type); } catch(e){}
+        }
 
         function setViewMode(mode) {
             const currentTheme = document.body.className.match(/theme-\\w+/)?.[0] || '';
-            document.body.className = `mode-${mode} ${currentTheme}`.trim();
+            const fontClass = document.body.classList.contains('font-sans') ? 'font-sans' : '';
+            document.body.className = `mode-${mode} ${currentTheme} ${fontClass}`.trim();
             ['side', 'stack', 'trans', 'orig'].forEach(k => {
                 const btn = document.getElementById(`btn-${k}`);
                 if (btn) btn.classList.remove('active');
@@ -421,16 +458,30 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
 
         function setTheme(theme) {
             const currentMode = document.body.className.match(/mode-[\\w-]+/)?.[0] || 'mode-side-by-side';
+            const fontClass = document.body.classList.contains('font-sans') ? 'font-sans' : '';
             if (theme === 'light') {
-                document.body.className = currentMode;
+                document.body.className = `${currentMode} ${fontClass}`.trim();
             } else {
-                document.body.className = `${currentMode} theme-${theme}`.trim();
+                document.body.className = `${currentMode} theme-${theme} ${fontClass}`.trim();
             }
         }
 
         function changeFontSize(delta) {
-            currentFontSize = Math.max(13, Math.min(20, currentFontSize + delta));
+            currentFontSize = Math.max(12, Math.min(22, Math.round((currentFontSize + delta) * 10) / 10));
             document.documentElement.style.setProperty('--base-font-size', `${currentFontSize}px`);
+            const label = document.getElementById('font-size-label');
+            if (label) label.textContent = `${currentFontSize}px`;
+            try { localStorage.setItem('academic_font_size', currentFontSize); } catch(e){}
+        }
+
+        function toggleWidth() {
+            currentWidthLevel = (currentWidthLevel + 1) % widthConfigs.length;
+            const cfg = widthConfigs[currentWidthLevel];
+            document.documentElement.style.setProperty('--content-width', cfg.width);
+            document.documentElement.style.setProperty('--content-max-width', cfg.maxWidth);
+            const btn = document.getElementById('btn-width');
+            if (btn) btn.textContent = cfg.label;
+            try { localStorage.setItem('academic_width_level', currentWidthLevel); } catch(e){}
         }
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -522,6 +573,29 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
                         }
                     }
                 });
+                // 恢复用户持久化偏好
+                try {
+                    const savedFont = localStorage.getItem('academic_font_family');
+                    if (savedFont) setFontFamily(savedFont);
+
+                    const savedSize = parseFloat(localStorage.getItem('academic_font_size'));
+                    if (savedSize && !isNaN(savedSize)) {
+                        currentFontSize = savedSize;
+                        document.documentElement.style.setProperty('--base-font-size', `${currentFontSize}px`);
+                        const label = document.getElementById('font-size-label');
+                        if (label) label.textContent = `${currentFontSize}px`;
+                    }
+
+                    const savedWidth = parseInt(localStorage.getItem('academic_width_level'));
+                    if (!isNaN(savedWidth) && savedWidth >= 0 && savedWidth < widthConfigs.length) {
+                        currentWidthLevel = savedWidth;
+                        const cfg = widthConfigs[currentWidthLevel];
+                        document.documentElement.style.setProperty('--content-width', cfg.width);
+                        document.documentElement.style.setProperty('--content-max-width', cfg.maxWidth);
+                        const btn = document.getElementById('btn-width');
+                        if (btn) btn.textContent = cfg.label;
+                    }
+                } catch(e) {}
             } else {
                 document.body.className = '';
             }
