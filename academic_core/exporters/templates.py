@@ -400,16 +400,14 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
                 <button class="btn-mode" id="btn-orig" onclick="setViewMode('orig-only')">🇬🇧 仅看原文</button>
             </div>
             <div class="btn-group">
-                <button class="btn-tool active" id="btn-font-song" onclick="setFontFamily('song')" title="学术宋体">宋体</button>
-                <button class="btn-tool" id="btn-font-sans" onclick="setFontFamily('sans')" title="现代黑体">黑体</button>
-            </div>
-            <div class="btn-group">
-                <button class="btn-tool" onclick="changeFontSize(-0.5)" title="缩小字号">A-</button>
+                <button class="btn-tool" onclick="changeFontSize(-0.5)" title="缩小字号">字 -</button>
                 <span id="font-size-label" style="font-size: 11px; padding: 2px 4px; font-weight: 600; opacity: 0.8; display: inline-flex; align-items: center;">14.5px</span>
-                <button class="btn-tool" onclick="changeFontSize(0.5)" title="放大字号">A+</button>
+                <button class="btn-tool" onclick="changeFontSize(0.5)" title="放大字号">字 +</button>
             </div>
             <div class="btn-group">
-                <button class="btn-tool" id="btn-width" onclick="toggleWidth()" title="切换视口版心宽度">📐 宽屏 95%</button>
+                <button class="btn-tool" onclick="changeContentWidth(-5)" title="缩减页面版心宽度">宽 -</button>
+                <span id="width-label" style="font-size: 11px; padding: 2px 4px; font-weight: 600; opacity: 0.8; display: inline-flex; align-items: center;">95%</span>
+                <button class="btn-tool" onclick="changeContentWidth(5)" title="增加页面版心宽度">宽 +</button>
             </div>
             <div class="btn-group">
                 <button class="btn-tool" onclick="setTheme('light')" title="浅色明亮">☀️</button>
@@ -422,30 +420,11 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
     <script id="raw-markdown" type="application/json">__RAW_MD_PLACEHOLDER__</script>
     <script>
         let currentFontSize = 14.5;
-        let currentWidthLevel = 0;
-        const widthConfigs = [
-            { label: '📐 宽屏 95%', width: '95%', maxWidth: '1600px' },
-            { label: '📐 全景 100%', width: '99%', maxWidth: '100%' },
-            { label: '📐 适中 85%', width: '85%', maxWidth: '1280px' },
-        ];
-
-        function setFontFamily(type) {
-            if (type === 'sans') {
-                document.body.classList.add('font-sans');
-                document.getElementById('btn-font-sans')?.classList.add('active');
-                document.getElementById('btn-font-song')?.classList.remove('active');
-            } else {
-                document.body.classList.remove('font-sans');
-                document.getElementById('btn-font-song')?.classList.add('active');
-                document.getElementById('btn-font-sans')?.classList.remove('active');
-            }
-            try { localStorage.setItem('academic_font_family', type); } catch(e){}
-        }
+        let currentContentWidth = 95;
 
         function setViewMode(mode) {
             const currentTheme = document.body.className.match(/theme-\\w+/)?.[0] || '';
-            const fontClass = document.body.classList.contains('font-sans') ? 'font-sans' : '';
-            document.body.className = `mode-${mode} ${currentTheme} ${fontClass}`.trim();
+            document.body.className = `mode-${mode} ${currentTheme}`.trim();
             ['side', 'stack', 'trans', 'orig'].forEach(k => {
                 const btn = document.getElementById(`btn-${k}`);
                 if (btn) btn.classList.remove('active');
@@ -458,11 +437,10 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
 
         function setTheme(theme) {
             const currentMode = document.body.className.match(/mode-[\\w-]+/)?.[0] || 'mode-side-by-side';
-            const fontClass = document.body.classList.contains('font-sans') ? 'font-sans' : '';
             if (theme === 'light') {
-                document.body.className = `${currentMode} ${fontClass}`.trim();
+                document.body.className = currentMode;
             } else {
-                document.body.className = `${currentMode} theme-${theme} ${fontClass}`.trim();
+                document.body.className = `${currentMode} theme-${theme}`.trim();
             }
         }
 
@@ -474,14 +452,13 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
             try { localStorage.setItem('academic_font_size', currentFontSize); } catch(e){}
         }
 
-        function toggleWidth() {
-            currentWidthLevel = (currentWidthLevel + 1) % widthConfigs.length;
-            const cfg = widthConfigs[currentWidthLevel];
-            document.documentElement.style.setProperty('--content-width', cfg.width);
-            document.documentElement.style.setProperty('--content-max-width', cfg.maxWidth);
-            const btn = document.getElementById('btn-width');
-            if (btn) btn.textContent = cfg.label;
-            try { localStorage.setItem('academic_width_level', currentWidthLevel); } catch(e){}
+        function changeContentWidth(delta) {
+            currentContentWidth = Math.max(65, Math.min(100, currentContentWidth + delta));
+            document.documentElement.style.setProperty('--content-width', `${currentContentWidth}%`);
+            document.documentElement.style.setProperty('--content-max-width', currentContentWidth >= 98 ? '100%' : '1680px');
+            const label = document.getElementById('width-label');
+            if (label) label.textContent = `${currentContentWidth}%`;
+            try { localStorage.setItem('academic_content_width', currentContentWidth); } catch(e){}
         }
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -575,9 +552,6 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
                 });
                 // 恢复用户持久化偏好
                 try {
-                    const savedFont = localStorage.getItem('academic_font_family');
-                    if (savedFont) setFontFamily(savedFont);
-
                     const savedSize = parseFloat(localStorage.getItem('academic_font_size'));
                     if (savedSize && !isNaN(savedSize)) {
                         currentFontSize = savedSize;
@@ -586,14 +560,13 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
                         if (label) label.textContent = `${currentFontSize}px`;
                     }
 
-                    const savedWidth = parseInt(localStorage.getItem('academic_width_level'));
-                    if (!isNaN(savedWidth) && savedWidth >= 0 && savedWidth < widthConfigs.length) {
-                        currentWidthLevel = savedWidth;
-                        const cfg = widthConfigs[currentWidthLevel];
-                        document.documentElement.style.setProperty('--content-width', cfg.width);
-                        document.documentElement.style.setProperty('--content-max-width', cfg.maxWidth);
-                        const btn = document.getElementById('btn-width');
-                        if (btn) btn.textContent = cfg.label;
+                    const savedWidth = parseFloat(localStorage.getItem('academic_content_width'));
+                    if (savedWidth && !isNaN(savedWidth)) {
+                        currentContentWidth = savedWidth;
+                        document.documentElement.style.setProperty('--content-width', `${currentContentWidth}%`);
+                        document.documentElement.style.setProperty('--content-max-width', currentContentWidth >= 98 ? '100%' : '1680px');
+                        const label = document.getElementById('width-label');
+                        if (label) label.textContent = `${currentContentWidth}%`;
                     }
                 } catch(e) {}
             } else {
@@ -660,7 +633,18 @@ def build_html_template(
     """
     根据 Markdown 文本构建带有完整 KaTeX 动态渲染与内嵌插图的自包含 HTML 文档
     """
-    md_ready = embed_local_images_as_data_uri(markdown_text, assets_dir) if embed_images else markdown_text
+    # 提取 YAML frontmatter 中的 title，并剥离 frontmatter，避免其直接作为正文在顶部渲染
+    clean_md = markdown_text
+    fm_match = re.match(r'^---\r?\n([\s\S]*?)\r?\n---\r?\n*', markdown_text)
+    if fm_match:
+        fm_content = fm_match.group(1)
+        if title in ("学术讲义", "学术文档", "未命名文档", "BEST-Route", ""):
+            t_match = re.search(r'title:\s*["\']?(.*?)["\']?\s*$', fm_content, re.MULTILINE)
+            if t_match and t_match.group(1).strip():
+                title = t_match.group(1).strip()
+        clean_md = markdown_text[fm_match.end():]
+
+    md_ready = embed_local_images_as_data_uri(clean_md, assets_dir) if embed_images else clean_md
     json_str = (
         json.dumps(md_ready, ensure_ascii=False)
         .replace('<', '\\u003c')
