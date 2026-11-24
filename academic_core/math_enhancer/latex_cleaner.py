@@ -36,8 +36,8 @@ class LatexCleaner:
             return f"{prefix}${content}${suffix}"
 
         res = re.sub(r'(?<!\$)\$([^\$\n]+?)\$(?!\$)', _fix_inline, text)
-        # 消除全角标点后紧随的多余半角空格
-        res = re.sub(r'([，。；：！？、])\s+', r'\1', res)
+        # 消除全角标点后紧随的多余水平半角空格（注意不能吞掉 \n 换行）
+        res = re.sub(r'([，。；：！？、])[ \t]+', r'\1', res)
         return res
 
     @staticmethod

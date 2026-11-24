@@ -1,6 +1,12 @@
 # -*- coding: utf-8 -*-
 """
 出版级 HTML/KaTeX 打印模板、学术卡片/双语排版样式与插图内嵌工具
+全新升级：
+1. 左右分栏高精度对齐 (Side-by-Side Grid + Line-by-Line Hover Highlight)
+2. 经典学术西文衬线 (Charter / Georgia) 与现代中文排版融合
+3. 顶部多功能悬浮阅读栏 (左右分栏 / 逐段流式 / 纯中文 / 纯英文)
+4. 多主题切换 (明亮 / 深色 / 羊皮纸护眼) 与字号无级缩放
+5. 出版级学术三线表 (Booktabs) 与 KaTeX 矢量数学公式无缝渲染
 """
 
 import os
@@ -21,12 +27,50 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
     <style>
         :root {
-            --bg-color: #ffffff;
-            --text-color: #1a202c;
-            --muted-color: #4a5568;
+            --bg-color: #f8fafc;
+            --container-bg: #ffffff;
+            --text-color: #0f172a;
+            --text-en: #334155;
             --border-color: #e2e8f0;
-            --accent-color: #2b6cb0;
+            --accent-color: #2563eb;
+            --orig-bg: #f8fafc;
+            --orig-border: #94a3b8;
+            --trans-bg: #ffffff;
+            --trans-border: #2563eb;
+            --card-hover: rgba(37, 99, 235, 0.04);
+            --card-hover-border: #93c5fd;
+            --base-font-size: 15px;
         }
+        body.theme-dark {
+            --bg-color: #0b0f19;
+            --container-bg: #111827;
+            --text-color: #e2e8f0;
+            --text-en: #94a3b8;
+            --border-color: #1f2937;
+            --accent-color: #3b82f6;
+            --orig-bg: #161f30;
+            --orig-border: #475569;
+            --trans-bg: #111827;
+            --trans-border: #3b82f6;
+            --card-hover: rgba(59, 130, 246, 0.08);
+            --card-hover-border: #3b82f6;
+        }
+        body.theme-sepia {
+            --bg-color: #f4ecd8;
+            --container-bg: #fcf8ed;
+            --text-color: #382c1e;
+            --text-en: #5c4b37;
+            --border-color: #e6dac1;
+            --accent-color: #8c531b;
+            --orig-bg: #f4ecdc;
+            --orig-border: #b8a389;
+            --trans-bg: #fcf8ed;
+            --trans-border: #8c531b;
+            --card-hover: rgba(140, 83, 27, 0.05);
+            --card-hover-border: #c49a6c;
+        }
+
+        * { box-sizing: border-box; }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
             line-height: 1.75;
@@ -34,122 +78,162 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
             background: var(--bg-color);
             margin: 0;
             padding: 0;
-            font-size: 15px;
+            font-size: var(--base-font-size);
+            transition: background 0.2s, color 0.2s;
         }
         .container {
-            max-width: 860px;
-            margin: 0 auto;
-            padding: 36px 48px;
+            max-width: 900px;
+            margin: 20px auto 40px auto;
+            padding: 40px 52px;
+            background: var(--container-bg);
+            border-radius: 10px;
+            box-shadow: 0 4px 24px -2px rgba(0, 0, 0, 0.05);
+            min-height: 90vh;
+            transition: max-width 0.25s ease-in-out;
         }
+
+        /* 顶部悬浮控制栏 */
+        .toolbar {
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
+            padding: 8px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 13px;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+        }
+        body.theme-dark .toolbar {
+            background: rgba(17, 24, 39, 0.92);
+        }
+        body.theme-sepia .toolbar {
+            background: rgba(252, 248, 237, 0.92);
+        }
+        .toolbar-title {
+            font-weight: 600;
+            color: var(--text-color);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 40%;
+        }
+        .toolbar-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .btn-group {
+            display: flex;
+            gap: 4px;
+            background: rgba(0,0,0,0.04);
+            padding: 2px;
+            border-radius: 6px;
+        }
+        .btn-mode, .btn-tool {
+            padding: 4px 10px;
+            border: 1px solid transparent;
+            background: transparent;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            color: var(--text-color);
+            transition: all 0.15s;
+        }
+        .btn-mode:hover, .btn-tool:hover {
+            background: rgba(0,0,0,0.06);
+        }
+        .btn-mode.active {
+            background: var(--accent-color);
+            color: #ffffff !important;
+            font-weight: 600;
+        }
+
+        /* 标题体系 */
         h1, h2, h3, h4 {
-            color: #1a365d;
+            color: var(--text-color);
             font-weight: 700;
             margin-top: 1.6em;
             margin-bottom: 0.8em;
             line-height: 1.35;
         }
-        h1 { font-size: 1.85em; border-bottom: 2px solid #3182ce; padding-bottom: 8px; }
-        h2 { font-size: 1.4em; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; }
-        h3 { font-size: 1.2em; }
+        h1 { font-size: 1.75em; border-bottom: 2px solid var(--accent-color); padding-bottom: 8px; }
+        h2 { font-size: 1.35em; border-bottom: 1px solid var(--border-color); padding-bottom: 6px; }
+        h3 { font-size: 1.15em; }
 
-        blockquote {
-            margin: 16px 0;
-            padding: 12px 20px;
-            background-color: #f7fafc;
-            border-left: 4px solid #3182ce;
-            border-radius: 4px;
-            color: #2d3748;
-        }
-
-        /* 双语分栏对照排版与卡片 */
+        /* 🌟 核心：双语分栏网格与高保真对齐 */
         .bilingual-pair {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 22px;
+            gap: 24px;
             margin: 16px 0;
-            align-items: start;
+            align-items: stretch;
+            border-radius: 8px;
+            padding: 4px;
+            transition: all 0.15s ease-in-out;
+        }
+        .bilingual-pair:hover {
+            background-color: var(--card-hover);
         }
         .bilingual-col {
             min-width: 0;
         }
         .bilingual-orig {
+            position: relative;
             margin: 0;
-            padding: 12px 16px;
-            background-color: #f8fafc;
-            border-left: 3px solid #cbd5e0;
-            border-radius: 4px;
-            color: var(--muted-color);
-            font-size: 0.93em;
-            line-height: 1.6;
+            padding: 14px 18px;
+            background-color: var(--orig-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-en);
+            font-family: Charter, "Source Serif 4", Georgia, "Times New Roman", serif;
+            font-size: 0.94em;
+            line-height: 1.72;
+            text-align: justify;
+            hyphens: auto;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
         }
         .bilingual-trans {
+            position: relative;
             margin: 0;
-            padding: 12px 16px;
-            background-color: #ffffff;
-            border-left: 3px solid #3182ce;
-            border-radius: 4px;
+            padding: 14px 18px;
+            background-color: var(--trans-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
             color: var(--text-color);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
             font-size: 0.98em;
-            line-height: 1.7;
-        }
-        .bilingual-orig p:first-child, .bilingual-trans p:first-child {
-            margin-top: 0;
-        }
-        .bilingual-orig p:last-child, .bilingual-trans p:last-child {
-            margin-bottom: 0;
+            line-height: 1.76;
+            text-align: justify;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
         }
 
-        /* 顶部悬浮阅读控制栏 (左右对照 / 上下流式 / 纯译文 / 纯原文) */
-        .toolbar {
-            position: sticky;
-            top: 0;
-            z-index: 1000;
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(8px);
-            border-bottom: 1px solid var(--border-color);
-            padding: 10px 24px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            font-size: 13px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        .bilingual-orig p:first-child, .bilingual-trans p:first-child { margin-top: 0; }
+        .bilingual-orig p:last-child, .bilingual-trans p:last-child { margin-bottom: 0; }
+
+        /* 消除双语卡片内标题的重复下划线与大间距 */
+        .bilingual-pair h1, .bilingual-pair h2, .bilingual-pair h3 {
+            border-bottom: none !important;
+            margin: 0 0 4px 0 !important;
+            padding: 0 !important;
         }
-        .toolbar-title {
-            font-weight: 600;
-            color: #2d3748;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            max-width: 45%;
+        .bilingual-orig h1, .bilingual-orig h2, .bilingual-orig h3 {
+            color: #475569;
+            font-family: Georgia, 'Times New Roman', serif;
+            font-size: 1.15em;
         }
-        .toolbar-buttons {
-            display: flex;
-            gap: 8px;
-        }
-        .btn-mode {
-            padding: 5px 12px;
-            border: 1px solid #cbd5e0;
-            background: #ffffff;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-            color: #4a5568;
-            transition: all 0.2s;
-        }
-        .btn-mode:hover {
-            border-color: #3182ce;
-            color: #3182ce;
-        }
-        .btn-mode.active {
-            background: #3182ce;
-            color: #ffffff;
-            border-color: #3182ce;
+        .bilingual-trans h1, .bilingual-trans h2, .bilingual-trans h3 {
+            color: var(--text-color);
+            font-size: 1.25em;
         }
 
         /* 视图模式支持 */
         body.mode-side-by-side .container {
-            max-width: 1360px;
-            padding: 24px 36px;
+            max-width: 1380px;
+            padding: 30px 42px;
         }
         body.mode-stacked .bilingual-pair {
             display: block;
@@ -158,7 +242,7 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
             margin-bottom: 8px;
         }
         body.mode-stacked .container {
-            max-width: 860px;
+            max-width: 900px;
         }
         body.mode-trans-only .bilingual-orig {
             display: none !important;
@@ -167,7 +251,7 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
             display: block;
         }
         body.mode-trans-only .container {
-            max-width: 860px;
+            max-width: 900px;
         }
         body.mode-orig-only .bilingual-trans {
             display: none !important;
@@ -176,40 +260,55 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
             display: block;
         }
         body.mode-orig-only .container {
-            max-width: 860px;
+            max-width: 900px;
         }
 
-        @media (max-width: 900px) {
-            .bilingual-pair {
-                grid-template-columns: 1fr !important;
-                gap: 10px;
-            }
-            .container {
-                max-width: 100% !important;
-                padding: 16px !important;
-            }
+        /* 出版级学术三线表 (Booktabs) */
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 22px 0;
+            font-size: 0.9em;
+            border-top: 2px solid var(--text-color);
+            border-bottom: 2px solid var(--text-color);
+            background: var(--container-bg);
         }
-
-        /* 原文页码徽标 */
-        .page-marker {
+        th {
+            border-bottom: 1.2px solid var(--text-color);
+            background-color: var(--orig-bg);
+            font-weight: 600;
+            padding: 9px 12px;
             text-align: center;
-            margin: 22px 0 14px 0;
-            color: #718096;
-            font-size: 0.82em;
-            letter-spacing: 0.05em;
+        }
+        td {
+            border-bottom: 1px solid var(--border-color);
+            padding: 8px 12px;
+            text-align: center;
+        }
+        tr:last-child td { border-bottom: none; }
+
+        /* 学术定理卡片 */
+        blockquote {
+            margin: 18px 0;
+            padding: 12px 20px;
+            background-color: var(--orig-bg);
+            border-left: 4px solid var(--accent-color);
+            border-radius: 4px;
+            color: var(--text-color);
         }
 
-        /* 论文/教材插图与图表自适应居中 */
+        /* 图片居中与图注 */
         img {
-            max-width: 96%;
+            max-width: 94%;
             height: auto;
             display: block;
-            margin: 16px auto;
-            border-radius: 4px;
+            margin: 18px auto;
+            border-radius: 6px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.06);
         }
 
         pre {
-            background-color: #f7fafc;
+            background-color: var(--orig-bg);
             border: 1px solid var(--border-color);
             border-radius: 6px;
             padding: 12px 16px;
@@ -218,27 +317,10 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
             line-height: 1.5;
         }
         code {
-            font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
+            font-family: "JetBrains Mono", Consolas, monospace;
             font-size: 0.9em;
         }
 
-        table {
-            border-collapse: collapse;
-            width: 100%;
-            margin: 20px 0;
-            font-size: 0.93em;
-        }
-        th, td {
-            border: 1px solid var(--border-color);
-            padding: 8px 12px;
-            text-align: left;
-        }
-        th {
-            background-color: #edf2f7;
-            font-weight: 600;
-        }
-
-        /* 数学公式容器防截断与美化 */
         .math-block-container {
             margin: 1.2em 0;
             overflow-x: visible !important;
@@ -247,44 +329,52 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
         .katex-display {
             overflow-x: visible !important;
             overflow-y: hidden;
-            font-size: 0.94em !important;
+            font-size: 0.95em !important;
             margin: 0.6em 0 !important;
         }
-        .katex {
-            font-size: 1.05em;
-            text-rendering: auto;
-        }
 
-        /* 彻底消除浏览器无头渲染可能带来的侧边/底边滚动条 */
-        ::-webkit-scrollbar {
-            display: none !important;
-            width: 0 !important;
-            height: 0 !important;
-        }
-        * {
-            scrollbar-width: none !important;
-            -ms-overflow-style: none !important;
+        @media (max-width: 960px) {
+            .bilingual-pair {
+                grid-template-columns: 1fr !important;
+                gap: 10px;
+            }
+            .container {
+                max-width: 100% !important;
+                padding: 16px !important;
+                margin: 0 !important;
+                border-radius: 0 !important;
+            }
+            .toolbar-title {
+                display: none;
+            }
         }
 
         @media print {
-            body {
-                background: white;
-            }
+            body { background: #fff !important; }
+            .toolbar { display: none !important; }
             .container {
-                max-width: 100%;
-                padding: 0;
+                max-width: 100% !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                box-shadow: none !important;
             }
             @page {
                 size: A4;
-                margin: 20mm 15mm 20mm 15mm;
+                margin: 18mm 15mm 18mm 15mm;
+            }
+            .bilingual-pair {
+                grid-template-columns: 1fr 1fr;
+                gap: 16px;
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
+            table, blockquote, img {
+                page-break-inside: avoid;
+                break-inside: avoid;
             }
             h1, h2, h3 {
                 page-break-after: avoid;
                 break-after: avoid;
-            }
-            .math-block-container, table, blockquote, img, .bilingual-orig {
-                page-break-inside: avoid;
-                break-inside: avoid;
             }
         }
     </style>
@@ -292,18 +382,32 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
 <body class="mode-side-by-side">
     <div class="toolbar" id="toolbar" style="display:none;">
         <div class="toolbar-title">__TITLE__</div>
-        <div class="toolbar-buttons">
-            <button class="btn-mode active" id="btn-side" onclick="setViewMode('side-by-side')">📖 左右分栏</button>
-            <button class="btn-mode" id="btn-stack" onclick="setViewMode('stacked')">📄 上下流式</button>
-            <button class="btn-mode" id="btn-trans" onclick="setViewMode('trans-only')">🇨🇳 仅看译文</button>
-            <button class="btn-mode" id="btn-orig" onclick="setViewMode('orig-only')">🇬🇧 仅看原文</button>
+        <div class="toolbar-controls">
+            <div class="btn-group">
+                <button class="btn-mode active" id="btn-side" onclick="setViewMode('side-by-side')">📖 左右分栏</button>
+                <button class="btn-mode" id="btn-stack" onclick="setViewMode('stacked')">📄 逐段流式</button>
+                <button class="btn-mode" id="btn-trans" onclick="setViewMode('trans-only')">🇨🇳 仅看译文</button>
+                <button class="btn-mode" id="btn-orig" onclick="setViewMode('orig-only')">🇬🇧 仅看原文</button>
+            </div>
+            <div class="btn-group">
+                <button class="btn-tool" onclick="setTheme('light')" title="浅色明亮">☀️</button>
+                <button class="btn-tool" onclick="setTheme('sepia')" title="羊皮纸护眼">📜</button>
+                <button class="btn-tool" onclick="setTheme('dark')" title="深色夜间">🌙</button>
+            </div>
+            <div class="btn-group">
+                <button class="btn-tool" onclick="changeFontSize(-1)" title="缩小字号">A-</button>
+                <button class="btn-tool" onclick="changeFontSize(1)" title="放大字号">A+</button>
+            </div>
         </div>
     </div>
     <div class="container" id="content"></div>
     <script id="raw-markdown" type="application/json">__RAW_MD_PLACEHOLDER__</script>
     <script>
+        let currentFontSize = 15;
+
         function setViewMode(mode) {
-            document.body.className = `mode-${mode}`;
+            const currentTheme = document.body.className.match(/theme-\\w+/)?.[0] || '';
+            document.body.className = `mode-${mode} ${currentTheme}`.trim();
             ['side', 'stack', 'trans', 'orig'].forEach(k => {
                 const btn = document.getElementById(`btn-${k}`);
                 if (btn) btn.classList.remove('active');
@@ -312,6 +416,20 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
             if (mode === 'stacked') document.getElementById('btn-stack')?.classList.add('active');
             if (mode === 'trans-only') document.getElementById('btn-trans')?.classList.add('active');
             if (mode === 'orig-only') document.getElementById('btn-orig')?.classList.add('active');
+        }
+
+        function setTheme(theme) {
+            const currentMode = document.body.className.match(/mode-[\\w-]+/)?.[0] || 'mode-side-by-side';
+            if (theme === 'light') {
+                document.body.className = currentMode;
+            } else {
+                document.body.className = `${currentMode} theme-${theme}`.trim();
+            }
+        }
+
+        function changeFontSize(delta) {
+            currentFontSize = Math.max(13, Math.min(20, currentFontSize + delta));
+            document.documentElement.style.setProperty('--base-font-size', `${currentFontSize}px`);
         }
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -351,26 +469,27 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
             const contentEl = document.getElementById('content');
             contentEl.innerHTML = html;
 
-            // 自动检测双语元素：若存在双语对照，显示控制工具栏并默认开启左右对照
+            // 自动检测双语元素
             const hasBilingual = contentEl.querySelector('.bilingual-pair, .bilingual-orig');
             if (hasBilingual) {
                 document.getElementById('toolbar').style.display = 'flex';
 
-                // 兼容旧版：若存在未包裹在 .bilingual-pair 内的 .bilingual-orig，自动与后续兄弟节点成对封装
-                const rawOrigs = contentEl.querySelectorAll('.bilingual-orig');
+                // 兼容：若存在未包裹在 .bilingual-pair 内的 .bilingual-orig，自动与后续兄弟节点成对封装
+                const rawOrigs = Array.from(contentEl.querySelectorAll('.bilingual-orig'));
                 rawOrigs.forEach(orig => {
                     if (!orig.closest('.bilingual-pair')) {
                         const nextEl = orig.nextElementSibling;
                         if (nextEl && !nextEl.classList.contains('bilingual-orig')) {
                             const pair = document.createElement('div');
                             pair.className = 'bilingual-pair';
+
                             const colLeft = document.createElement('div');
                             colLeft.className = 'bilingual-col bilingual-orig';
                             colLeft.innerHTML = orig.innerHTML;
 
                             const colRight = document.createElement('div');
                             colRight.className = 'bilingual-col bilingual-trans';
-                            colRight.appendChild(nextEl.cloneNode(true));
+                            colRight.innerHTML = nextEl.outerHTML;
 
                             pair.appendChild(colLeft);
                             pair.appendChild(colRight);
@@ -387,7 +506,6 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
         });
     </script>
 </body>
-
 </html>
 """
 
