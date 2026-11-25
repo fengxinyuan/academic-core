@@ -370,7 +370,7 @@ class AcademicLLMEngine:
 
         def _execute_with_chunk_cache(idx: int, txt: str) -> str:
             chunk_hash = hashlib.sha256(
-                f"{self.provider}_{self.model}_{target_lang}_{bilingual}_{use_math_sentinel}_{doc_name}_{idx}_{txt}".encode("utf-8")
+                f"{self.provider}_{self.model}_{target_lang}_{bilingual}_{use_math_sentinel}_{doc_name}_{idx}_{txt}_{system_prompt}".encode("utf-8")
             ).hexdigest()[:16]
             cache_file = os.path.join(self.chunk_cache_dir, f"{doc_name or 'doc'}_chunk_{idx:03d}_{chunk_hash}.json")
             if resume and os.path.exists(cache_file):

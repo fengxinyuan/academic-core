@@ -31,7 +31,8 @@ class OneNoteConverter(BaseConverter):
             $one = New-Object -ComObject OneNote.Application
             $absOne = '{abs_one}'
             $outPdf = '{out_pdf}'
-            $one.OpenHierarchy($absOne, $null, [ref]$secId, 1)
+            $secId = ""
+            $one.OpenHierarchy($absOne, $null, [ref]$secId, 0)
             $one.Publish($secId, $outPdf, 3, '')
             """
             subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_code], check=True)
