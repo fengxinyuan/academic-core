@@ -58,10 +58,16 @@ class TextConverter(BaseConverter):
         text = re.sub(r'\\begin\{abstract\}([\s\S]*?)\\end\{abstract\}', r'> **摘要**：\1\n', text)
 
         # 6. 标准化数学环境
+        # \[ ... \] -> $$ ... $$ 与 \( ... \) -> $ ... $
+        text = re.sub(r'\\\[([\s\S]*?)\\\]', r'$$\n\1\n$$', text)
+        text = re.sub(r'\\\(([\s\S]*?)\\\)', r'$\1$', text)
         # \begin{equation} -> $$
         text = re.sub(r'\\begin\{(?:equation|displaymath)\*?\}([\s\S]*?)\\end\{(?:equation|displaymath)\*?\}', r'$$\n\1\n$$', text)
         # \begin{align} -> \begin{aligned} 供 KaTeX 渲染
         text = re.sub(r'\\begin\{align\*?\}([\s\S]*?)\\end\{align\*?\}', r'$$\n\\begin{aligned}\1\\end{aligned}\n$$', text)
+        # 列表环境 \begin{itemize/enumerate} + \item -> Markdown 列表
+        text = re.sub(r'\\(?:begin|end)\{(?:itemize|enumerate)\}', '', text)
+        text = re.sub(r'^[ \t]*\\item\s*', '- ', text, flags=re.MULTILINE)
 
         # 7. 转换常见粗体斜体
         text = re.sub(r'\\textbf\{([^}]+)\}', r'**\1**', text)
@@ -84,8 +90,9 @@ class TextConverter(BaseConverter):
         if ext == ".tex":
             converted_text = self._convert_latex_to_markdown(raw_text)
         elif ext in (".html", ".htm"):
-            # 基础 HTML 标签清洗
-            converted_text = re.sub(r'<[^>]+>', '', raw_text)
+            # 先剥离 <script>/<style> 块，再清洗 HTML 标签
+            cleaned_html = re.sub(r'<(script|style)[^>]*>[\s\S]*?</\1>', '', raw_text, flags=re.IGNORECASE)
+            converted_text = re.sub(r'<[^>]+>', '', cleaned_html)
         else:
             converted_text = raw_text
 

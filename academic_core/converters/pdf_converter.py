@@ -47,12 +47,11 @@ class PDFConverter(BaseConverter):
             if MINERU_TOKEN or os.environ.get("MINERU_TOKEN"):
                 resolved_mode = "mineru"
             else:
-                doc = pymupdf.open(file_path)
-                total_p = len(doc)
-                sample_count = min(3, total_p)
-                total_chars = sum(len(doc[i].get_text().strip()) for i in range(sample_count))
-                total_imgs = sum(len(doc[i].get_images()) for i in range(sample_count))
-                doc.close()
+                with pymupdf.open(file_path) as doc:
+                    total_p = len(doc)
+                    sample_count = min(3, total_p)
+                    total_chars = sum(len(doc[i].get_text().strip()) for i in range(sample_count))
+                    total_imgs = sum(len(doc[i].get_images()) for i in range(sample_count))
                 avg_chars = total_chars / max(1, sample_count)
                 # 仅当文字丰度高且几乎没有扫描底图时采用纯文本直提，防止丢失公式/手写墨迹
                 resolved_mode = "text" if (avg_chars >= 200 and total_imgs == 0) else "vision"
@@ -60,27 +59,25 @@ class PDFConverter(BaseConverter):
         if resolved_mode == "mineru":
             return self._convert_via_mineru(file_path, doc_name)
 
-        doc = pymupdf.open(file_path)
-        total_p = len(doc)
         pages = []
+        with pymupdf.open(file_path) as doc:
+            total_p = len(doc)
+            if resolved_mode == "text":
+                for i in range(total_p):
+                    pages.append(PageData(page_num=i + 1, text=doc[i].get_text()))
+                return NormalizedDocument(
+                    source_path=file_path,
+                    doc_name=doc_name,
+                    pages=pages,
+                    is_text_only=True,
+                    metadata={"format": "pdf", "mode": "text", "total_pages": total_p},
+                )
 
-        if resolved_mode == "text":
+            # 默认 vision 切片模式
             for i in range(total_p):
-                pages.append(PageData(page_num=i + 1, text=doc[i].get_text()))
-            doc.close()
-            return NormalizedDocument(
-                source_path=file_path,
-                doc_name=doc_name,
-                pages=pages,
-                is_text_only=True,
-                metadata={"format": "pdf", "mode": "text", "total_pages": total_p},
-            )
+                pix = doc[i].get_pixmap(dpi=self.dpi)
+                pages.append(PageData(page_num=i + 1, image_bytes=pix.tobytes("png")))
 
-        # 默认 vision 切片模式
-        for i in range(total_p):
-            pix = doc[i].get_pixmap(dpi=self.dpi)
-            pages.append(PageData(page_num=i + 1, image_bytes=pix.tobytes("png")))
-        doc.close()
         return NormalizedDocument(
             source_path=file_path,
             doc_name=doc_name,
