@@ -411,8 +411,8 @@ class AcademicLLMEngine:
             result = "\n\n".join(ordered[i] for i in range(total_chunks))
 
 
-        # 通用去噪：清除可能残留的客套结束语
-        result = re.sub(r'>\s*📝\s*\*\*下节预告\*\*.*', '', result)
-        result = re.sub(r'\*?（?讲义完）?\*?', '', result)
+        # 通用去噪：清除可能残留的客套结束语（限定整行匹配，避免误伤正文词句）
+        result = re.sub(r'(?m)^[ \t]*>\s*📝\s*\*\*下节预告\*\*.*$', '', result)
+        result = re.sub(r'(?m)^[ \t]*\*?[（(]?讲义完[)）]?\*?[ \t]*$', '', result)
 
         return result.strip()

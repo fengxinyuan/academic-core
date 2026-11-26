@@ -26,10 +26,20 @@ def isolate_math(text: str) -> Tuple[str, Dict[str, str]]:
     """
     【公式物理隔离机制 · 无损版】
     将 LaTeX 块级 ($$...$$) 与行内 ($...$) 公式抽取为 ASCII 哨兵占位符 MATHxZZZ。
+    自动保护代码块 (```...``` / `...`) 与转义货币符 (\\$)，防止误隔离。
     返回: (隔离后文本, {占位符: 原始含$定界符的公式})
     """
     tokens: Dict[str, str] = {}
+    code_tokens: Dict[str, str] = {}
     counter = 0
+    code_counter = 0
+
+    def _mask_code(m):
+        nonlocal code_counter
+        ck = f"CODEMASK{code_counter}ZZZ"
+        code_tokens[ck] = m.group(0)
+        code_counter += 1
+        return ck
 
     def repl_block(m):
         nonlocal counter
@@ -45,10 +55,18 @@ def isolate_math(text: str) -> Tuple[str, Dict[str, str]]:
         counter += 1
         return key
 
-    # 先提取块级公式 $$ ... $$
-    t1 = re.sub(r'\$\$([\s\S]*?)\$\$', repl_block, text)
-    # 再提取行内公式 $ ... $
-    t2 = re.sub(r'(?<!\$)\$(?!\$)([^\$\n\r]+?)(?<!\$)\$(?!\$)', repl_inline, t1)
+    # 0. 先保护代码块与行内代码
+    t0 = re.sub(r'```[\s\S]*?```', _mask_code, text)
+    t0 = re.sub(r'`[^`\n]+`', _mask_code, t0)
+
+    # 1. 先提取块级公式 $$ ... $$
+    t1 = re.sub(r'\$\$([\s\S]*?)\$\$', repl_block, t0)
+    # 2. 再提取行内公式 $ ... $ (忽略转义 \$)
+    t2 = re.sub(r'(?<!\\)(?<!\$)\$(?!\$)([^\$\n\r]+?)(?<!\\)(?<!\$)\$(?!\$)', repl_inline, t1)
+
+    # 3. 还原代码块占位符
+    for ck, cv in code_tokens.items():
+        t2 = t2.replace(ck, cv)
 
     return t2, tokens
 

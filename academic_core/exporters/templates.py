@@ -463,10 +463,23 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
 
         document.addEventListener('DOMContentLoaded', () => {
             const raw = JSON.parse(document.getElementById('raw-markdown').textContent);
+            const codeTokens = [];
             const mathTokens = [];
             let processed = raw;
 
-            // 保护独立 $$...$$
+            // 0. 保护代码块与行内代码，防止其中的 $HOME / $100 / _ 被误认为公式
+            processed = processed.replace(/```[\\s\\S]*?```/g, (m) => {
+                const id = `CODEBLOCK${codeTokens.length}ZZZ`;
+                codeTokens.push(m);
+                return id;
+            });
+            processed = processed.replace(/`[^`\\n]+`/g, (m) => {
+                const id = `CODEINLINE${codeTokens.length}ZZZ`;
+                codeTokens.push(m);
+                return id;
+            });
+
+            // 1. 保护独立 $$...$$
             processed = processed.replace(/\\$\\$([\\s\\S]*?)\\$\\$/g, (m, code) => {
                 const id = `MATHBLOCK${mathTokens.length}ZZZ`;
                 try {
@@ -478,8 +491,8 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
                 return id;
             });
 
-            // 保护行内 $...$ (必须在裸 LaTeX 环境之前，避免内部 \begin{pmatrix} 被提前截断)
-            processed = processed.replace(/(?<!\\$)\\$([^\\$\\n]+?)\\$(?!\\$)/g, (m, code) => {
+            // 2. 保护行内 $...$ (必须在裸 LaTeX 环境之前，避免内部 \begin{pmatrix} 被提前截断；忽略转义美元符)
+            processed = processed.replace(/(?<!\\\\)(?<!\\$)\\$([^\\$\\n]+?)(?<!\\\\)\\$(?!\\$)/g, (m, code) => {
                 // 如果行内公式包含单格 array 冗余包裹，自动解包简化
                 const simplified = code.replace(/\\\\begin\\{array\\}\\s*\\{[ \\t]*[rcl][ \\t]*\\}\\s*\\{([\\s\\S]*?)\\}\\s*\\\\end\\{array\\}/, '$1');
                 const id = `MATHINLINE${mathTokens.length}ZZZ`;
@@ -509,6 +522,11 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
                     }
                 }
                 return id;
+            });
+
+            // 在 marked 解析前还原代码块，由 marked 原生高亮渲染
+            processed = processed.replace(/CODE(BLOCK|INLINE)(\\d+)ZZZ/g, (m, type, idx) => {
+                return codeTokens[parseInt(idx)] || m;
             });
 
             let html = marked.parse(processed);

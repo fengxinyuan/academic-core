@@ -35,7 +35,7 @@ class LatexCleaner:
                 return prefix + suffix
             return f"{prefix}${content}${suffix}"
 
-        res = re.sub(r'(?<!\$)\$([^\$\n]+?)\$(?!\$)', _fix_inline, text)
+        res = re.sub(r'(?<!\\)(?<!\$)\$([^\$\n]+?)(?<!\\)\$(?!\$)', _fix_inline, text)
         # 消除全角标点后紧随的多余水平半角空格（注意不能吞掉 \n 换行）
         res = re.sub(r'([，。；：！？、])[ \t]+', r'\1', res)
         return res
@@ -104,12 +104,18 @@ class LatexCleaner:
     @staticmethod
     def fix_subscript_superscript(text: str) -> str:
         """
-        修复 OCR 产生的下标/上标空格脱离：
+        仅在数学定界符 ($...$ / $$...$$) 内部修复 OCR 产生的下标/上标空格脱离：
         a_ 1 -> a_1
         x^ 2 -> x^2
+        避免误伤正文下划线、URL 或文件名。
         """
-        text = re.sub(r'([a-zA-Z0-9_\}\)]+)\s*_\s*([a-zA-Z0-9]+)', r'\1_\2', text)
-        text = re.sub(r'([a-zA-Z0-9_\}\)]+)\s*\^\s*([a-zA-Z0-9]+)', r'\1^\2', text)
+        def _fix_expr(expr: str) -> str:
+            expr = re.sub(r'([a-zA-Z0-9_\}\)]+)\s*_\s*([a-zA-Z0-9]+)', r'\1_\2', expr)
+            expr = re.sub(r'([a-zA-Z0-9_\}\)]+)\s*\^\s*([a-zA-Z0-9]+)', r'\1^\2', expr)
+            return expr
+
+        text = re.sub(r'\$\$([\s\S]*?)\$\$', lambda m: "$$" + _fix_expr(m.group(1)) + "$$", text)
+        text = re.sub(r'(?<!\\)(?<!\$)\$([^\$\n]+?)(?<!\\)\$(?!\$)', lambda m: "$" + _fix_expr(m.group(1)) + "$", text)
         return text
 
     @staticmethod
@@ -150,19 +156,31 @@ class LatexCleaner:
         # 处理行内公式 $ ... $
         def _replace_inline(m):
             return "$" + _repair_formula(m.group(1)) + "$"
-        text = re.sub(r'(?<!\$)\$([^\$\n]+?)\$(?!\$)', _replace_inline, text)
+        text = re.sub(r'(?<!\\)(?<!\$)\$([^\$\n]+?)(?<!\\)\$(?!\$)', _replace_inline, text)
 
         return text
 
     @classmethod
     def clean(cls, markdown_text: str) -> str:
         """
-        全套自愈增强流水线
+        全套自愈增强流水线（自动保护代码块与行内代码不被公式正则误伤）
         """
         if not markdown_text:
             return ""
 
-        res = markdown_text
+        code_tokens = {}
+        counter = 0
+
+        def _mask_code(m):
+            nonlocal counter
+            key = f"CLEANERCODEMASK{counter}ZZZ"
+            code_tokens[key] = m.group(0)
+            counter += 1
+            return key
+
+        res = re.sub(r'```[\s\S]*?```', _mask_code, markdown_text)
+        res = re.sub(r'`[^`\n]+`', _mask_code, res)
+
         res = cls.simplify_single_cell_arrays(res)
         res = cls.wrap_bare_latex_environments(res)
         res = cls.fix_chinese_punctuation_in_math(res)
@@ -170,4 +188,7 @@ class LatexCleaner:
         res = cls.fix_subscript_superscript(res)
         res = cls.fix_command_spacing(res)
         res = cls.balance_left_right(res)
+
+        for k, v in code_tokens.items():
+            res = res.replace(k, v)
         return res

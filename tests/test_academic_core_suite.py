@@ -290,7 +290,11 @@ def test_4_math_enhancer_and_sentinel():
     # LatexCleaner
     assert LatexCleaner.fix_chinese_punctuation_in_math("设 $f(x) = x^2+1，$ 且 $g(x) = \\sin x。$") == "设 $f(x) = x^2+1$，且 $g(x) = \\sin x$。"
     assert "\\begin{aligned}" in LatexCleaner.fix_align_environments("$$\\begin{align}\nx &= 1\n\\end{align}$$")
-    assert "a_1" in LatexCleaner.fix_subscript_superscript("a_ 1")
+    assert "$a_1$" in LatexCleaner.fix_subscript_superscript("$a_ 1$")
+    cleaned_safe = LatexCleaner.clean("![fig](fig_ 1.png)\n\n```bash\necho $HOME\n```\n\nCost is \\$50 and \\$100.")
+    assert "fig_ 1.png" in cleaned_safe
+    assert "echo $HOME" in cleaned_safe
+    assert "\\$50" in cleaned_safe
     assert "\\alpha 与 \\beta" in LatexCleaner.fix_command_spacing("设\\alpha与\\beta")
     assert "\\right." in LatexCleaner.balance_left_right("$$\\left( \\frac{a}{b} $$")
 
@@ -493,6 +497,36 @@ def test_9_glossary_and_chunk_cache():
         shutil.rmtree(temp_cache_dir, ignore_errors=True)
 
 
+def test_10_general_code_currency_and_inline_matrix_rendering():
+    print("\n[测试 10/10] 通用文档代码块、货币符转义与行内矩阵 PDF 防漏防溢出...", flush=True)
+    raw = (
+        "价格为 \\$50 到 \\$100。行内代码 `$HOME` 与代码块：\n\n"
+        "```bash\necho $PATH\n```\n\n"
+        "行内矩阵 $A = \\begin{pmatrix} 1 & 1 \\\\ 0 & 2 \\end{pmatrix}$ 与后续矩阵 $B = \\begin{pmatrix} 0 & 1 \\\\ 1 & 0 \\end{pmatrix}$。\n\n"
+        "$$\n"
+        "x \\in \\ker(T^*) \\iff T^* x = 0 \\iff \\forall y \\in V,\\; \\langle y, T^* x \\rangle = 0 \\iff \\forall y \\in V,\\; \\langle Ty, x \\rangle = 0 \\iff x \\in (\\operatorname{img} T)^\\perp\n"
+        "$$\n"
+    )
+    isolated, tokens = isolate_math(raw)
+    assert "echo $PATH" in isolated
+    assert "`$HOME`" in isolated
+    assert "\\$50" in isolated and "\\$100" in isolated
+    assert len(tokens) == 3  # A, B, and block formula
+
+    temp_pdf = os.path.join(tempfile.gettempdir(), "test_general_rendering.pdf")
+    try:
+        ChromePDFPrinter().print_markdown(raw, temp_pdf, title="General Core Test")
+        assert os.path.exists(temp_pdf)
+        with pymupdf.open(temp_pdf) as doc:
+            txt = "\n".join(p.get_text() for p in doc)
+        assert "MATHINLINE" not in txt and "MATHBLOCK" not in txt and "CODEBLOCK" not in txt
+        assert "$PATH" in txt
+        assert "$HOME" in txt
+    finally:
+        if os.path.exists(temp_pdf):
+            os.remove(temp_pdf)
+
+
 if __name__ == "__main__":
     test_1_converters()
     test_2_vision_ocr_and_mineru_assembly()
@@ -503,4 +537,5 @@ if __name__ == "__main__":
     test_7_no_llm_fast_typeset_mode()
     test_8_pipeline_e2e_bilingual_paper()
     test_9_glossary_and_chunk_cache()
-    print("\n🎉 academic_core 2.1 全部 9 大核心端到端测试通过，0 缺陷！")
+    test_10_general_code_currency_and_inline_matrix_rendering()
+    print("\n🎉 academic_core 2.1 全部 10 大核心端到端测试通过，0 缺陷！")

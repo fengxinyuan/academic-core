@@ -7,6 +7,7 @@ academic_core 核心统一流水线 (Orchestrator)
 import os
 import glob
 import re
+import json
 import logging
 from typing import List, Optional, Dict, Union
 from concurrent.futures import ThreadPoolExecutor
