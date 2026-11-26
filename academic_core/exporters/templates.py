@@ -478,6 +478,20 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
                 return id;
             });
 
+            // 保护行内 $...$ (必须在裸 LaTeX 环境之前，避免内部 \begin{pmatrix} 被提前截断)
+            processed = processed.replace(/(?<!\\$)\\$([^\\$\\n]+?)\\$(?!\\$)/g, (m, code) => {
+                // 如果行内公式包含单格 array 冗余包裹，自动解包简化
+                const simplified = code.replace(/\\\\begin\\{array\\}\\s*\\{[ \\t]*[rcl][ \\t]*\\}\\s*\\{([\\s\\S]*?)\\}\\s*\\\\end\\{array\\}/, '$1');
+                const id = `MATHINLINE${mathTokens.length}ZZZ`;
+                try {
+                    const rendered = katex.renderToString(simplified.trim(), { displayMode: false, throwOnError: false });
+                    mathTokens.push(rendered);
+                } catch(e) {
+                    mathTokens.push(`$${code}$`);
+                }
+                return id;
+            });
+
             // 保护未包裹定界符的裸 LaTeX 数学环境 (如未加 $ 的 \\begin{array} ... \\end{array})
             processed = processed.replace(/(?<!\\$)\\\\begin\\{(aligned|array|matrix|pmatrix|bmatrix|vmatrix|cases|gather|equation\\*?)\\}([\\s\\S]*?)\\\\end\\{\\1\\}(?!\\$)/g, (m) => {
                 // 简化冗余单格 array: \\begin{array}{r}{\\sigma(x)=...}\\end{array} -> \\sigma(x)=...
@@ -493,20 +507,6 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
                     } catch(e2) {
                         mathTokens.push(`$${m}$`);
                     }
-                }
-                return id;
-            });
-
-            // 保护行内 $...$
-            processed = processed.replace(/(?<!\\$)\\$([^\\$\\n]+?)\\$(?!\\$)/g, (m, code) => {
-                // 如果行内公式包含单格 array 冗余包裹，自动解包简化
-                const simplified = code.replace(/\\\\begin\\{array\\}\\s*\\{[ \\t]*[rcl][ \\t]*\\}\\s*\\{([\\s\\S]*?)\\}\\s*\\\\end\\{array\\}/, '$1');
-                const id = `MATHINLINE${mathTokens.length}ZZZ`;
-                try {
-                    const rendered = katex.renderToString(simplified.trim(), { displayMode: false, throwOnError: false });
-                    mathTokens.push(rendered);
-                } catch(e) {
-                    mathTokens.push(`$${code}$`);
                 }
                 return id;
             });
@@ -572,6 +572,24 @@ BASE_HTML_TEMPLATE = """<!DOCTYPE html>
             } else {
                 document.body.className = '';
             }
+
+            function fitWideMath() {
+                const containers = document.querySelectorAll('.math-block-container');
+                containers.forEach(c => {
+                    const katexDisp = c.querySelector('.katex-display');
+                    if (!katexDisp) return;
+                    katexDisp.style.fontSize = '';
+                    const maxW = c.clientWidth;
+                    const scrollW = katexDisp.scrollWidth;
+                    if (maxW > 0 && scrollW > maxW) {
+                        const ratio = Math.max(0.58, (maxW / scrollW) * 0.94);
+                        katexDisp.style.setProperty('font-size', `${ratio.toFixed(3)}em`, 'important');
+                    }
+                });
+            }
+            fitWideMath();
+            window.addEventListener('resize', fitWideMath);
+            window.addEventListener('beforeprint', fitWideMath);
         });
     </script>
 </body>
