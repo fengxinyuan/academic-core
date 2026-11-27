@@ -28,6 +28,8 @@ wheels/
 
 # Caches & Temporary build files
 cache_ocr/
+cache_chunks/
+cache_mineru/
 .academic_checkpoint.json
 *.temp.html
 tests/temp_cache/
@@ -55,6 +57,10 @@ pdf_deliverables/
 pdf_exports/
 markdown_output/
 manifests/
+output/
+笔记*/
+论文/
+书稿/
 *.one
 *.pdf
 高等代数与线性代数讲义全书*
